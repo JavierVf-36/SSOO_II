@@ -10,6 +10,7 @@
 #include <time.h>
 
 #define NUMHIJOS 10
+int buzon;
 
 typedef struct mensaje
 {
@@ -32,10 +33,13 @@ int asignarNumeroRandom()
 
 void manejadora_salida(int sig)
 {
-    printf("Has pulsado CTRL+C. Eliminando buzon y saliendo.\n");
+    printf("\nHas pulsado CTRL+C. Eliminando buzon y saliendo.\n");
+    for(int i=0;i<NUMHIJOS;i++)
+    {
+        wait(NULL);
+    }
     eliminar_buzon(buzon);
-
-    kill(0,SIGKILL);
+    exit(0);
 }
 
 int main(void)
@@ -54,7 +58,6 @@ int main(void)
 
     pid_t pid[NUMHIJOS];
     mensaje msg;
-    int buzon;
     int resultado=0;
 
     buzon=msgget(IPC_PRIVATE,IPC_CREAT | 0600);
