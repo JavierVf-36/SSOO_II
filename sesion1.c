@@ -107,6 +107,8 @@ int main(void){
         signal_semaforo(semid,0);
     }
 
+    //NO HACER ESTO. (LO DE ARRIBA) MODIFICAR EL SIGNAL. MEJOR DECIRLE QUE HAGA 5 SIGNALS, QUE NO UN BUCLE QUE HAGA UN SIGNAL. LO MISMO PARA EL WAIT
+
     for (int i = 0; i < NUMHIJOS; i++) {
         wait(NULL);
     }
