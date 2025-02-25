@@ -26,8 +26,7 @@ int eliminar_buzon(int buzon)
 
 int asignarNumeroRandom()
 {
-    int num=rand()%15+1;
-    return num;
+    return rand()%15+1;
 }
 
 
@@ -86,7 +85,7 @@ int main(void)
             int enviado=msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
             if(enviado==0)
             {
-                printf("Soy %d. Numero a enviar: %d\n", getpid(), msg.numRandom);
+                printf("Soy el hijo numero %d, con PID %d. Numero a enviar: %d\n",i+1, getpid(), msg.numRandom);
             }
             exit(0);
             break;
