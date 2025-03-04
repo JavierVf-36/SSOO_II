@@ -119,6 +119,7 @@ int main(void)
     for (int i = 0; i < NUMHIJOS; i++) {
         wait(NULL);  // Espera a que los hijos terminen
     }
+    
     printf("\n");
     eliminar_semaforos(semid, 0, IPC_RMID);  // Elimina los semáforos
     return 0;
