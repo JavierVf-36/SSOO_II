@@ -10,9 +10,37 @@
 
 //./filosofar 4 4 4>salida (para guardar posibles errores en fichero de salida,creo)
 
+#define NUMHIJOS 2
+
 int shm_inicio;
 int sem_inicio;
-pid_t pid_hijo;
+int semid;
+pid_t pid_hijo[NUMHIJOS];
+
+void wait_semaforo(int semid, int num_sem){
+    struct sembuf operacion;
+    operacion.sem_num=num_sem;
+    operacion.sem_op=-1;
+    operacion.sem_flg=0;
+
+    if(semop(semid, &operacion, 1)==-1){
+        perror("Error en wait_semaforo");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void signal_semaforo(int semid, int num_sem){
+    struct sembuf operacion;
+    operacion.sem_num=num_sem;
+    operacion.sem_op=1;
+    operacion.sem_flg=0;
+
+    if(semop(semid, &operacion,1)==-1){
+        perror("Error en signal_semaforo");
+        exit(EXIT_FAILURE);
+    }
+}
+
 
 void eliminar_sem(){
     int err=semctl(sem_inicio, 0, IPC_RMID);    
@@ -20,7 +48,11 @@ void eliminar_sem(){
         printf("Error al eliminar semáforo...\n");
         return;
     }
-
+    err=semctl(semid, 0, IPC_RMID);
+    if(err==-1){
+        printf("Error al eliminar semáforo...\n");
+        return;
+    }
 }
 
 
@@ -37,11 +69,20 @@ void liberar_mem(){
 
 void manejadora_salida(int sig) {
     
-    if(getpid()==pid_hijo){
-        exit(0);
+    for(int i=0;i<NUMHIJOS;i++){
+        if(pid_hijo[i]>0){
+            kill(pid_hijo[i], SIGKILL);
+        }
     }
+
+
     printf("\nHas pulsado CTRL+C. Eliminando semáforo y memoria compartida.\n");
-    wait(NULL);
+    fflush(stdout);
+    for(int i=0;i<NUMHIJOS;i++)
+    {
+        wait(NULL);
+    }
+
     eliminar_sem();
     liberar_mem();
     exit(0);
@@ -51,6 +92,7 @@ void manejadora_salida(int sig) {
 
 int main (int argc, char *argv[]){
     int err;
+    pid_t pidPadre;
    //comprobar argumentos pasados al main
    //registrar señales a usar
    //obtener IPCs
@@ -60,7 +102,7 @@ int main (int argc, char *argv[]){
    //eliminar IPC
    //llamar FI_fin
    
-
+    pidPadre=getpid();
 
     
     //numero de filosofos, numero de vueltas por filosofo y lentitud de ejecucion>=0 (4)
@@ -101,9 +143,22 @@ int main (int argc, char *argv[]){
         return -1;
     }
 
+    semid=semget(IPC_PRIVATE, 1, IPC_CREAT|0600);
+    if(semid==-1){
+        printf("Error al crear semaforo...\n");
+        return -1;
+    }
+
+    int ctl;
+    ctl=semctl(semid, 0, SETVAL, 0);   
+    if(ctl==-1){
+        printf("Error al inicializar semáforo...\n");
+        return -1;
+    }
+
 
     int tamMemComp=FI_getTamaNoMemoriaCompartida();
-    shm_inicio=shmget(IPC_PRIVATE, tamMemComp+3*sizeof(int), IPC_CREAT | 0600);
+    shm_inicio=shmget(IPC_PRIVATE, tamMemComp+sizeof(int), IPC_CREAT | 0600);
     if(shm_inicio<0){
         printf("Error al crear memoria compartida...\n");
         return -1;
@@ -119,27 +174,64 @@ int main (int argc, char *argv[]){
     }
 
 
+        int *memoria = (int *)shmat(shm_inicio, NULL, 0);
+            if (memoria == (void *)-1) {
+                perror("Error en shmat (hijo)");
+                exit(1);
+            }
+    memoria[0]=0;
 
-    pid_t pid=fork();
-    if(pid==-1){
-        return -1;
-    }else if(pid==0){
-        pid_hijo=getpid();
-        err=FI_inicioFilOsofo(0);
-        if(err ==-1){
+    
+
+    for(int i=0;i<NUMHIJOS;i++){
+        pid_t pid=fork();
+        
+        if(pid==0){
+            pid_hijo[i]=getpid();
+            break;
+        }else if(pid<=-1)
+        {
+            printf("Error al hacer fork...\n");
             return -1;
         }
-        
+    }
+
+    int errFI_puedo,errFI_pausa;
+    if(getpid()!=pidPadre){
+
+        int *memoriaH = (int *)shmat(shm_inicio, NULL, 0);
+            if (memoriaH == (void *)-1) {
+                perror("Error en shmat (hijo)");
+                exit(1);
+            }
+        err=FI_inicioFilOsofo(memoriaH[0]++);
+            if(err ==-1){
+            return -1;
+        }
+        printf("%d",getpid());
+        fflush(stdout);
+        shmdt(memoriaH);
         
         int nVueltas=0;
         while(nVueltas<numVuel){
-            err=FI_puedoAndar();
-            if(err ==-1){
+            errFI_puedo=FI_puedoAndar();
+            if(errFI_puedo>=0&&errFI_puedo<100)
+            {
+                wait_semaforo(semid,errFI_puedo);
+            }
+            else
+            {
+                signal_semaforo(semid,0);
+            }
+
+            
+
+            if(errFI_puedo ==-1){
                 return -1;
             }
             
-            err=FI_pausaAndar();
-            if(err ==-1){
+            errFI_pausa=FI_pausaAndar();
+            if(errFI_pausa ==-1){
                 return -1;
                 
             }
@@ -147,16 +239,17 @@ int main (int argc, char *argv[]){
             int zona=FI_andar();
             if(zona ==-1){
                 return -1;
-            }else if(zona == ENTRADACOMEDOR){
+            }
+            else if(zona == ENTRADACOMEDOR){
                 FI_entrarAlComedor(0);
                 while(1){
-                    err=FI_puedoAndar();
-                    if(err ==-1){
+                    errFI_puedo=FI_puedoAndar();
+                    if(errFI_puedo ==-1){
                         return -1;
                     }
                     
-                    err=FI_pausaAndar();
-                    if(err ==-1){
+                    errFI_pausa=FI_pausaAndar();
+                    if(errFI_pausa ==-1){
                         return -1;
                     }
 
@@ -166,11 +259,11 @@ int main (int argc, char *argv[]){
                     }else if(zona2 == SILLACOMEDOR){
                         FI_cogerTenedor(TENEDORDERECHO);
                         FI_cogerTenedor(TENEDORIZQUIERDO);
-                        int zona3;
+                        int comiendo;
                         do
                         {
-                            zona3=FI_comer();
-                        } while (zona3==SILLACOMEDOR);
+                            comiendo=FI_comer();
+                        } while (comiendo==SILLACOMEDOR);
                         //soltar tenedores
                         FI_dejarTenedor(TENEDORIZQUIERDO);
                         FI_dejarTenedor(TENEDORDERECHO);
@@ -184,13 +277,13 @@ int main (int argc, char *argv[]){
                 FI_entrarAlTemplo(0);
                 while(1)
                 {
-                    err=FI_puedoAndar();
-                    if(err ==-1){
+                    errFI_puedo=FI_puedoAndar();
+                    if(errFI_puedo ==-1){
                         return -1;
                     }
                     
-                    err=FI_pausaAndar();
-                    if(err ==-1){
+                    errFI_pausa=FI_pausaAndar();
+                    if(errFI_pausa ==-1){
                         return -1;
                     }
 
@@ -198,11 +291,11 @@ int main (int argc, char *argv[]){
                     if(zona2==-1){
                         return -1;
                     }else if(zona2 == SITIOTEMPLO){
-                        int zona3;
+                        int meditar;
                         do
                         {
-                            zona3=FI_meditar();
-                        } while (zona3==SITIOTEMPLO);
+                            meditar=FI_meditar();
+                        } while (meditar==SITIOTEMPLO);
                         nVueltas+=1;
                         break;
                         
@@ -218,13 +311,16 @@ int main (int argc, char *argv[]){
 
         return 0;
     }else{
-
+        for(int i=0;i<NUMHIJOS;i++)
+        {   
         wait(NULL);
+        }
     }
 
 
     //ELIMINO IPCs
     eliminar_sem(sem_inicio);
+    shmdt(memoria);
     liberar_mem(shm_inicio);
 
 
@@ -240,3 +336,14 @@ int main (int argc, char *argv[]){
 
    return 0;
 }
+
+
+/*
+* Hay 3 casos: 
+    1.- Ser el primero. Solo hara signals al anterior
+    2.- Ser un intermedio. Hara wait del de delante y signal del de atras
+    3.- Ser el ultimo. Solo hara wait del de delante
+Averiguar quien es quien (el identificador de cada uno) o el orden en el que se posicionan al principio
+*
+*
+*/
