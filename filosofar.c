@@ -207,6 +207,15 @@ int main (int argc, char *argv[]){
         }
     }
     
+    int ctl;
+    ctl=semctl(semid,0,SETVAL,1);
+
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
+
 
 
     int tamMemComp=FI_getTamaNoMemoriaCompartida();
@@ -279,15 +288,6 @@ int main (int argc, char *argv[]){
 
     int errFI_puedo,errFI_pausa;
     if(getpid()!=pidPadre){
-
-        int *memoriaH = (int *)shmat(shm_inicio, NULL, 0);
-        if (memoriaH == (void *)-1)
-        {
-            perror("Error en shmat (hijo)");
-            exit(1);
-        }
-        
-        shmdt(memoriaH);
         
         int nVueltas=0;
         int zona;
@@ -295,7 +295,14 @@ int main (int argc, char *argv[]){
         {
             //printf("\n");
             //fflush(stdout);
+            wait_semaforo(semid,0);
             errFI_puedo=FI_puedoAndar();
+            errFI_pausa=FI_pausaAndar();
+
+            if(errFI_pausa ==-1)
+            {
+                return -1;     
+            }
 
             if(errFI_puedo ==-1)
             {
@@ -304,9 +311,9 @@ int main (int argc, char *argv[]){
 
             if(errFI_puedo>=0&&errFI_puedo<100)
             {   //NO PUEDO ANDAR
-                //fflush(stdout);
                 int idFil=localizarSignal(getpid(),numFil);
-
+                printf("%d",errFI_pausa);
+                fflush(stdout);
                 if(idFil>=0)
                 {
                     if(errFI_puedo==0)
@@ -314,13 +321,9 @@ int main (int argc, char *argv[]){
                         errFI_puedo=30;
                     }
                     //printf("Soy %d y no puedo andar. Busco y espero un mensaje de tipo %d.\n",getpid(),errFI_puedo);
+                    //fflush(stdout);
                     //Espera a recibir un mensaje de tipo errFI_puedo
                     msgrcv(buzon,&msg,sizeof(mensaje)-sizeof(long),errFI_puedo,0);
-                    errFI_pausa=FI_pausaAndar();
-                    if(errFI_pausa ==-1)
-                    {
-                        return -1;     
-                    }
                     zona=FI_andar();
                     //Cuando lo reciba, SE MUEVE Y AVISA AL DE DETRAS
                     //Enviar un mensaje de tipo idFil
@@ -355,12 +358,7 @@ int main (int argc, char *argv[]){
             }
             else
             {   //ANDA Y AVISA
-                errFI_pausa=FI_pausaAndar();
-                if(errFI_pausa ==-1)
-                {
-                    return -1;     
-                }
-            zona=FI_andar();
+                zona=FI_andar();
                 //Envia un mensaje de tipo idFil para avisar que se va a mover
                 //printf("Soy %d, puedo andar. Me buscare\n",getpid());
                 //fflush(stdout);
@@ -379,12 +377,10 @@ int main (int argc, char *argv[]){
                     {
                         msg.tipo=30;
                     }
-                    //printf("\nSoy el filosofo %d. Intento enviar el mensaje %d con %ld tipo.\n", idFil, msg.info,msg.tipo);
-                    //fflush(stdout);
                     int enviado=msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
                     if(enviado==0)
                     {
-                        //printf("\nSoy el filosofo %d, con PID %d. Aviso que ya me he podido mover.\n",idFil, getpid());
+                        //printf("\nSoy el filosofo %d, con PID %d. Ya me he movido hacia delante.\n",idFil, getpid());
                         //fflush(stdout);
                     }
                     else
@@ -398,11 +394,8 @@ int main (int argc, char *argv[]){
             }
 
         
-            if(zona ==-1)
-            {
-                return -1;
-            }
-            else if(zona == ENTRADACOMEDOR)
+
+            if(zona == ENTRADACOMEDOR)
             {
                 FI_entrarAlComedor(0);
                 while(1)
@@ -475,14 +468,22 @@ int main (int argc, char *argv[]){
                     }
                 }
             }
+            else if(zona ==-1)
+            {
+                return -1;
+            }
 
+            //FALTA EL PUENTE
+
+
+            signal_semaforo(semid,0);
         }
         err= FI_finFilOsofo();
         if(err ==-1)
         {
             return -1;
         }
-
+        
         return 0;
     }
     else

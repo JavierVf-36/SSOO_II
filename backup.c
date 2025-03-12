@@ -218,20 +218,12 @@ int main (int argc, char *argv[]){
     int errFI_puedo,errFI_pausa;
     if(getpid()!=pidPadre){
 
-        int *memoriaH = (int *)shmat(shm_inicio, NULL, 0);
-        if (memoriaH == (void *)-1)
-        {
-            perror("Error en shmat (hijo)");
-            exit(1);
-        }
 
         err=FI_inicioFilOsofo(memoriaH[0]++);
         if(err ==-1)
         {
             return -1;
         }
-
-        shmdt(memoriaH);
         
         int nVueltas=0;
         while(nVueltas<numVuel)
