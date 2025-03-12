@@ -1,3 +1,10 @@
+/*
+**********************************************
+*   ULTIMOS CAMBIOS GUARDADOS DE FILOSOFAR   *
+*   POR SI ACASO LA CAGAMOS NO PERDEMOS NADA *
+**********************************************
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/ipc.h>
@@ -9,12 +16,6 @@
 #include "filosofar.h"
 
 //./filosofar 4 4 4>salida (para guardar posibles errores en fichero de salida,creo)
-
-typedef struct infoFils
-{
-    pid_t pidFil;
-    int idFil;
-}infoFils;
 
 int shm_inicio;
 int sem_inicio;
@@ -46,27 +47,6 @@ void signal_semaforo(int semid, int num_sem){
         perror("Error en signal_semaforo");
         exit(EXIT_FAILURE);
     }
-}
-
-int localizarSignal(pid_t pid, int numFil)
-{
-    infoFils *memoria = (infoFils *)shmat(shm_inicio, NULL, 0);
-    if (memoria == (void *)-1)
-    {
-        perror("Error en shmat (hijo)");
-        exit(1);
-    }
-
-    for(int i=0;i<numFil;i++)
-    {
-        if(memoria[i].pidFil==pid)
-        {
-            printf("¡Me encontre!, mi idFil es: %d\n", memoria[i].idFil);
-            fflush(stdout);
-            return memoria[i].idFil;
-        }
-    }
-    return -1;
 }
 
 
@@ -175,7 +155,7 @@ int main (int argc, char *argv[]){
         return -1;
     }
 
-    semid=semget(IPC_PRIVATE, numFil-1, IPC_CREAT|0600);
+    semid=semget(IPC_PRIVATE, 1, IPC_CREAT|0600);
     if(semid==-1)
     {
         printf("Error al crear semaforo...\n");
@@ -192,7 +172,7 @@ int main (int argc, char *argv[]){
 
 
     int tamMemComp=FI_getTamaNoMemoriaCompartida();
-    shm_inicio=shmget(IPC_PRIVATE, tamMemComp+numFil*sizeof(infoFils), IPC_CREAT | 0600);
+    shm_inicio=shmget(IPC_PRIVATE, tamMemComp+sizeof(int), IPC_CREAT | 0600);
     if(shm_inicio<0)
     {
         printf("Error al crear memoria compartida...\n");
@@ -210,39 +190,22 @@ int main (int argc, char *argv[]){
     }
 
 
-    infoFils *memoria = (infoFils *)shmat(shm_inicio, NULL, 0);
+    int *memoria = (int *)shmat(shm_inicio, NULL, 0);
     if (memoria == (void *)-1)
     {
         perror("Error en shmat (hijo)");
         exit(1);
     }
+    memoria[0]=0;
 
     
-    printf("\n");
-    fflush(stdout);
-    for(int i=0;i<numFil;i++){
+
+    for(int i=0;i<numFIl;i++){
         pid_t pid=fork();
         
         if(pid==0)
         {
             pid_hijo[i]=getpid();
-            infoFils infoFil;
-            infoFil.pidFil=getpid();
-            infoFil.idFil=i;
-            printf("|%d|%d|\n",getpid(),i);
-            fflush(stdout);
-            memoria[i]=infoFil;
-            err=FI_inicioFilOsofo(i);
-            if(err ==-1)
-            {
-                return -1;
-            }
-
-            //En memoria compartida se esta guardando correctamente:
-            //1.- El pid del filosofo
-            //2.- El identificador del filosofo
-            //Basta que un filosofo recorra la memoria 
-            //buscando su PID para saber que identificador tiene
             break;
         }
         else if(pid<=-1)
@@ -261,65 +224,26 @@ int main (int argc, char *argv[]){
             perror("Error en shmat (hijo)");
             exit(1);
         }
-        
+
+        err=FI_inicioFilOsofo(memoriaH[0]++);
+        if(err ==-1)
+        {
+            return -1;
+        }
+
         shmdt(memoriaH);
         
         int nVueltas=0;
         while(nVueltas<numVuel)
         {
-            printf("\n");
-            fflush(stdout);
             errFI_puedo=FI_puedoAndar();
             if(errFI_puedo>=0&&errFI_puedo<100)
             {
-                printf("Soy %d y no puedo andar. Me buscare.\n",getpid());
-                fflush(stdout);
-                int idFil=localizarSignal(getpid(),numFil);
-
-                //El primero nunca la va a ser imposible moverse, ni le compruebo
-                if(idFil>0&&idFil<numFil-1)
-                {
-                    //EL DE DELANTE
-                    wait_semaforo(semid,errFI_puedo);
-                    //Despues de esperar, SE MUEVE Y AVISA AL DE DETRAS
-                    signal_semaforo(semid,idFil);
-                }else if(idFil==numFil-1)
-                {
-                    wait_semaforo(semid, errFI_puedo);
-                }
+                wait_semaforo(semid,errFI_puedo);
             }
             else
             {
-                printf("Soy %d,puedo andar y me tengo que buscar\n",getpid());
-                fflush(stdout);
-                int idFil=localizarSignal(getpid(),numFil);
-                
-                if(idFil==-1)
-                {
-                    printf("Filosofo no encontrado\n");
-                    fflush(stdout);
-                    return 1;
-                }
-                else if(idFil==0) 
-                {   //PRIMER FILOSOFO, solo signal
-                    printf("Soy %d, primero y le hago un signal al semaforo %d\n",getpid(),idFil);
-                    fflush(stdout);
-                    signal_semaforo(semid,idFil);
-                }
-                else if(idFil>0&&idFil<numFil-1)
-                {   //FILOSOFOS INTERMEDIOS
-                    printf("Soy %d, intermedios y le hago un wait al semaforo %d signal al semaforo %d\n",getpid(),idFil,idFil-1);
-                    fflush(stdout);
-                    wait_semaforo(semid,idFil);
-                    signal_semaforo(semid,idFil-1);
-                }
-                else if(idFil>0&&idFil==numFil-1)
-                {   //FILOSOFO FINAL
-                    printf("Soy %d, final y le hago un signal al semaforo %d\n",getpid(),idFil);
-                    fflush(stdout);
-                    wait_semaforo(semid,idFil);
-                }
-                
+                signal_semaforo(semid,0);
             }
 
             
@@ -426,7 +350,7 @@ int main (int argc, char *argv[]){
     }
     else
     {
-        for(int i=0;i<numFil;i++)
+        for(int i=0;i<NUMHIJOS;i++)
         {   
         wait(NULL);
         }
@@ -463,9 +387,5 @@ int main (int argc, char *argv[]){
 *
 *
 *   COSAS QUE HE CONSEGUIDO POR MI CUENTA 
-    1.- Crea el numero de filosofos que le pasas por parametro (ayer se nos olvido comprobarlo y no lo hacia)
-    2.- Guardar pid de filosofos + id de filosofos en un struct para añadirlo en memoria compartida
-    Lo he hecho para que se pueda localizar a si mismo el filosofo. Basta con que entre en la memoria
-    recorra el bucle hasta que encuente su pid dentro de el mismo, cuando eso suceda, entonces podra
-    mirar el otro campo del struct y conocer quien es (es la idea, no se 100% asegurado si funciona)
-    */
+    1.- Crea el numero de filosofos que le pasas por parametro (ayer se nos olvido comprobarlo)
+*/
