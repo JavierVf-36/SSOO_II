@@ -75,8 +75,8 @@ int localizarSignal(pid_t pid, int numFil)
     {
         if(memoria[i].pidFil==pid)
         {
-            //printf("¡Me encontre!, mi idFil es: %d\n", memoria[i].idFil);
-            //fflush(stdout);
+            ////printf("¡Me encontre!, mi idFil es: %d\n", memoria[i].idFil);
+            ////fflush(stdout);
             return memoria[i].idFil;
         }
     }
@@ -88,13 +88,13 @@ void eliminar_sem(){
     int err=semctl(sem_inicio, 0, IPC_RMID);    
     if(err==-1)
     {
-        printf("Error al eliminar semáforo...\n");
+        //printf("Error al eliminar semáforo...\n");
         return;
     }
     err=semctl(semid, 0, IPC_RMID);
     if(err==-1)
     {
-        printf("Error al eliminar semáforo...\n");
+        //printf("Error al eliminar semáforo...\n");
         return;
     }
 }
@@ -105,7 +105,7 @@ void liberar_mem(){
     int err=shmctl(shm_inicio, IPC_RMID, NULL);
     if(err==-1)
     {
-        printf("Error al liberar memoria compartida...\n");
+        //printf("Error al liberar memoria compartida...\n");
         return;
     }
 }
@@ -122,8 +122,8 @@ void manejadora_salida(int sig) {
         exit(0);
     }
 
-    printf("\nHas pulsado CTRL+C. Eliminando semáforo y memoria compartida.\n");
-    fflush(stdout);
+    //printf("\nHas pulsado CTRL+C. Eliminando semáforo y memoria compartida.\n");
+    //fflush(stdout);
     
 
     eliminar_sem();
@@ -151,7 +151,7 @@ int main (int argc, char *argv[]){
     //numero de filosofos, numero de vueltas por filosofo y lentitud de ejecucion>=0 (4)
     if(argc!=4)
     {
-        printf("Numero de parámetros incorrecto...\n");
+        //printf("Numero de parámetros incorrecto...\n");
         return -1;
     }
 
@@ -162,7 +162,7 @@ int main (int argc, char *argv[]){
     
     if(numFil<0 || numFil>MAXFILOSOFOS || numVuel<=0 || lentitud<0)
     {
-        printf("Parámetros incorrectos...\n");
+        //printf("Parámetros incorrectos...\n");
         return -2;
     }
 
@@ -186,7 +186,7 @@ int main (int argc, char *argv[]){
     sem_inicio=semget(IPC_PRIVATE, numSemaforos, IPC_CREAT | 0600);
     if(sem_inicio<0)
     {
-        printf("Error al crear semaforos...\n");
+        //printf("Error al crear semaforos...\n");
         return -1;
     }
     if(numFil>1)
@@ -194,7 +194,7 @@ int main (int argc, char *argv[]){
         semid=semget(IPC_PRIVATE, numFil-1, IPC_CREAT|0600);
         if(semid==-1)
         {
-            printf("Error al crear semaforo...\n");
+            //printf("Error al crear semaforo...\n");
             return -1;
         }
     }else
@@ -202,7 +202,7 @@ int main (int argc, char *argv[]){
         semid=semget(IPC_PRIVATE, 1, IPC_CREAT|0600);
         if(semid==-1)
         {
-            printf("Error al crear semaforo...\n");
+            //printf("Error al crear semaforo...\n");
             return -1;
         }
     }
@@ -213,7 +213,7 @@ int main (int argc, char *argv[]){
     shm_inicio=shmget(IPC_PRIVATE, tamMemComp+numFil*sizeof(infoFils), IPC_CREAT | 0600);
     if(shm_inicio<0)
     {
-        printf("Error al crear memoria compartida...\n");
+        //printf("Error al crear memoria compartida...\n");
         return -1;
     }
     //memoria compartida en encina, lo más ajustado a lo que usemos (multiplo de 4)
@@ -231,7 +231,7 @@ int main (int argc, char *argv[]){
     buzon=msgget(IPC_PRIVATE,IPC_CREAT | 0600);
     if(buzon==-1)
     {
-        printf("Error al crear el buzon.\n");
+        //printf("Error al crear el buzon.\n");
         return 1;
     }
 
@@ -243,8 +243,8 @@ int main (int argc, char *argv[]){
     }
 
     
-    printf("\n");
-    fflush(stdout);
+    //printf("\n");
+    //fflush(stdout);
     for(int i=0;i<numFil;i++){
         pid_t pid=fork();
         
@@ -254,8 +254,8 @@ int main (int argc, char *argv[]){
             infoFils infoFil;
             infoFil.pidFil=getpid();
             infoFil.idFil=i;
-            printf("|%d|%d|\n",getpid(),i);
-            fflush(stdout);
+            //printf("|%d|%d|\n",getpid(),i);
+            //fflush(stdout);
             memoria[i]=infoFil;
             err=FI_inicioFilOsofo(i);
             if(err ==-1)
@@ -272,7 +272,7 @@ int main (int argc, char *argv[]){
         }
         else if(pid<=-1)
         {
-            printf("Error al hacer fork...\n");
+            //printf("Error al hacer fork...\n");
             return -1;
         }
     }
@@ -293,8 +293,8 @@ int main (int argc, char *argv[]){
         int zona;
         while(nVueltas<numVuel)
         {
-            printf("\n");
-            fflush(stdout);
+            //printf("\n");
+            //fflush(stdout);
             errFI_puedo=FI_puedoAndar();
 
             if(errFI_puedo ==-1)
@@ -304,7 +304,7 @@ int main (int argc, char *argv[]){
 
             if(errFI_puedo>=0&&errFI_puedo<100)
             {   //NO PUEDO ANDAR
-                fflush(stdout);
+                //fflush(stdout);
                 int idFil=localizarSignal(getpid(),numFil);
 
                 if(idFil>=0)
@@ -313,20 +313,20 @@ int main (int argc, char *argv[]){
                     {
                         errFI_puedo=30;
                     }
-                    printf("Soy %d y no puedo andar. Busco y espero un mensaje de tipo %d.\n",getpid(),errFI_puedo);
+                    //printf("Soy %d y no puedo andar. Busco y espero un mensaje de tipo %d.\n",getpid(),errFI_puedo);
                     //Espera a recibir un mensaje de tipo errFI_puedo
                     msgrcv(buzon,&msg,sizeof(mensaje)-sizeof(long),errFI_puedo,0);
-                    //Cuando lo reciba, SE MUEVE Y AVISA AL DE DETRAS
-                    //Enviar un mensaje de tipo idFil
-                    printf("He terminado de esperar. Me voy a mover ya.\n");
-                    fflush(stdout);
-
                     errFI_pausa=FI_pausaAndar();
                     if(errFI_pausa ==-1)
                     {
                         return -1;     
                     }
                     zona=FI_andar();
+                    //Cuando lo reciba, SE MUEVE Y AVISA AL DE DETRAS
+                    //Enviar un mensaje de tipo idFil
+                    //printf("He terminado de esperar. Me voy a mover ya.\n");
+                    //fflush(stdout);
+
 
                     msg.info=0;
                     msg.tipo=idFil;
@@ -334,47 +334,44 @@ int main (int argc, char *argv[]){
                     {
                         msg.tipo=30;
                     }
-                    printf("\nSoy el filosofo %d. Intento enviar el mensaje %d con %ld tipo.\n", idFil, msg.info,msg.tipo);
-                    fflush(stdout);
+                    //printf("\nSoy el filosofo %d. Intento enviar el mensaje %d con %ld tipo.\n", idFil, msg.info,msg.tipo);
+                    //fflush(stdout);
                     int enviado=msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
                     if(enviado==0)
                     {
-                        printf("\nSoy el filosofo %d, con PID %d. Aviso que ya me he podido mover.\n",idFil, getpid());
-                        fflush(stdout);
+                        //printf("\nSoy el filosofo %d, con PID %d. Aviso que ya me he podido mover.\n",idFil, getpid());
+                        //fflush(stdout);
                     }else
                     {
                         perror("Error en msgsnd");
-                        printf("No se ha podido enviar el mensaje.\n");
-                        fflush(stdout);
+                        //printf("No se ha podido enviar el mensaje.\n");   
+                        //fflush(stdout);
                     }
                 }else
                 {
-                    printf("No se ha encontrado a nadie.\n");
+                    //printf("No se ha encontrado a nadie.\n");
                     return 1;
                 }
             }
             else
-            {
-                printf("Soy %d, puedo andar. Me buscare\n",getpid());
-                fflush(stdout);
+            {   //ANDA Y AVISA
+                errFI_pausa=FI_pausaAndar();
+                if(errFI_pausa ==-1)
+                {
+                    return -1;     
+                }
+            zona=FI_andar();
+                //Envia un mensaje de tipo idFil para avisar que se va a mover
+                //printf("Soy %d, puedo andar. Me buscare\n",getpid());
+                //fflush(stdout);
                 int idFil=localizarSignal(getpid(),numFil);
                 
                 if(idFil==-1)
                 {
-                    printf("Filosofo no encontrado\n");
-                    fflush(stdout);
+                    //printf("Filosofo no encontrado\n");
+                    //fflush(stdout);
                     return 1;
                 }
-                else
-                {
-                    //ANDA Y AVISA
-                    //Envia un mensaje de tipo idFil para avisar que se va a mover
-                    errFI_pausa=FI_pausaAndar();
-                    if(errFI_pausa ==-1)
-                    {
-                        return -1;     
-                    }
-                    zona=FI_andar();
 
                     msg.info=0;
                     msg.tipo=idFil;
@@ -382,25 +379,24 @@ int main (int argc, char *argv[]){
                     {
                         msg.tipo=30;
                     }
-                    printf("\nSoy el filosofo %d. Intento enviar el mensaje %d con %ld tipo.\n", idFil, msg.info,msg.tipo);
-                    fflush(stdout);
+                    //printf("\nSoy el filosofo %d. Intento enviar el mensaje %d con %ld tipo.\n", idFil, msg.info,msg.tipo);
+                    //fflush(stdout);
                     int enviado=msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
                     if(enviado==0)
                     {
-                        printf("\nSoy el filosofo %d, con PID %d. Aviso que ya me he podido mover.\n",idFil, getpid());
-                        fflush(stdout);
+                        //printf("\nSoy el filosofo %d, con PID %d. Aviso que ya me he podido mover.\n",idFil, getpid());
+                        //fflush(stdout);
                     }
                     else
                     {
                         perror("Error en msgsnd");  
-                        printf("No se ha podido enviar el mensaje.\n");
-                        fflush(stdout);
+                        //printf("No se ha podido enviar el mensaje.\n");
+                        //fflush(stdout);
                     }
-                }
+            
                 
             }
 
-        
         
             if(zona ==-1)
             {
@@ -509,7 +505,7 @@ int main (int argc, char *argv[]){
     err=FI_fin();
     if(err<0)
     {
-        printf("Error al hacer FI_fin...\n");
+        //printf("Error al hacer FI_fin...\n");
         return -1;
     }
 
