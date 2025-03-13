@@ -75,8 +75,8 @@ int localizarSignal(pid_t pid, int numFil)
     {
         if(memoria[i].pidFil==pid)
         {
-            ////printf("¡Me encontre!, mi idFil es: %d\n", memoria[i].idFil);
-            ////fflush(stdout);
+            //printf("¡Me encontre!, mi idFil es: %d\n", memoria[i].idFil);
+            //fflush(stdout);
             return memoria[i].idFil;
         }
     }
@@ -88,13 +88,13 @@ void eliminar_sem(){
     int err=semctl(sem_inicio, 0, IPC_RMID);    
     if(err==-1)
     {
-        //printf("Error al eliminar semáforo...\n");
+        printf("Error al eliminar semáforo...\n");
         return;
     }
     err=semctl(semid, 0, IPC_RMID);
     if(err==-1)
     {
-        //printf("Error al eliminar semáforo...\n");
+        printf("Error al eliminar semáforo...\n");
         return;
     }
 }
@@ -105,7 +105,7 @@ void liberar_mem(){
     int err=shmctl(shm_inicio, IPC_RMID, NULL);
     if(err==-1)
     {
-        //printf("Error al liberar memoria compartida...\n");
+        printf("Error al liberar memoria compartida...\n");
         return;
     }
 }
@@ -122,8 +122,8 @@ void manejadora_salida(int sig) {
         exit(0);
     }
 
-    //printf("\nHas pulsado CTRL+C. Eliminando semáforo y memoria compartida.\n");
-    //fflush(stdout);
+    printf("\nHas pulsado CTRL+C. Eliminando semáforo y memoria compartida.\n");
+    fflush(stdout);
     
 
     eliminar_sem();
@@ -151,7 +151,7 @@ int main (int argc, char *argv[]){
     //numero de filosofos, numero de vueltas por filosofo y lentitud de ejecucion>=0 (4)
     if(argc!=4)
     {
-        //printf("Numero de parámetros incorrecto...\n");
+        printf("Numero de parámetros incorrecto...\n");
         return -1;
     }
 
@@ -162,7 +162,7 @@ int main (int argc, char *argv[]){
     
     if(numFil<0 || numFil>MAXFILOSOFOS || numVuel<=0 || lentitud<0)
     {
-        //printf("Parámetros incorrectos...\n");
+        printf("Parámetros incorrectos...\n");
         return -2;
     }
 
@@ -186,29 +186,28 @@ int main (int argc, char *argv[]){
     sem_inicio=semget(IPC_PRIVATE, numSemaforos, IPC_CREAT | 0600);
     if(sem_inicio<0)
     {
-        //printf("Error al crear semaforos...\n");
+        printf("Error al crear semaforos...\n");
         return -1;
     }
-    if(numFil>1)
-    {
-        semid=semget(IPC_PRIVATE, numFil-1, IPC_CREAT|0600);
-        if(semid==-1)
-        {
-            //printf("Error al crear semaforo...\n");
-            return -1;
-        }
-    }else
-    {
-        semid=semget(IPC_PRIVATE, 1, IPC_CREAT|0600);
-        if(semid==-1)
-        {
-            //printf("Error al crear semaforo...\n");
-            return -1;
-        }
-    }
     
+
+    semid=semget(IPC_PRIVATE, 2, IPC_CREAT|0600);
+    if(semid==-1)
+    {
+        printf("Error al crear semaforo...\n");
+        return -1;
+    }
+     
     int ctl;
     ctl=semctl(semid,0,SETVAL,1);
+
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
+
+    ctl=semctl(semid,1,SETVAL,2);
 
     if(ctl==-1)
     {
@@ -222,7 +221,7 @@ int main (int argc, char *argv[]){
     shm_inicio=shmget(IPC_PRIVATE, tamMemComp+numFil*sizeof(infoFils), IPC_CREAT | 0600);
     if(shm_inicio<0)
     {
-        //printf("Error al crear memoria compartida...\n");
+        printf("Error al crear memoria compartida...\n");
         return -1;
     }
     //memoria compartida en encina, lo más ajustado a lo que usemos (multiplo de 4)
@@ -259,7 +258,6 @@ int main (int argc, char *argv[]){
         
         if(pid==0)
         {
-            pid_hijo[i]=getpid();
             infoFils infoFil;
             infoFil.pidFil=getpid();
             infoFil.idFil=i;
@@ -281,120 +279,70 @@ int main (int argc, char *argv[]){
         }
         else if(pid<=-1)
         {
-            //printf("Error al hacer fork...\n");
+            printf("Error al hacer fork...\n");
             return -1;
+        }
+        else
+        {
+            pid_hijo[i]=getpid();
         }
     }
 
     int errFI_puedo,errFI_pausa;
-    if(getpid()!=pidPadre){
+    if(getpid()!=pidPadre)
+    {
         
         int nVueltas=0;
-        int zona;
+        int zona=-1;
+        int pausado=0;
         while(nVueltas<numVuel)
         {
-            //printf("\n");
-            //fflush(stdout);
             wait_semaforo(semid,0);
             errFI_puedo=FI_puedoAndar();
-            errFI_pausa=FI_pausaAndar();
+            if(pausado==0)
+            {
+              errFI_pausa=FI_pausaAndar();  
+            }
+            
 
             if(errFI_pausa ==-1)
             {
+                signal_semaforo(semid,0);
                 return -1;     
             }
 
             if(errFI_puedo ==-1)
             {
                 return -1;
+            }    
+
+
+            if (errFI_puedo != 100)
+            {
+                pausado=1;
+                signal_semaforo(semid, 0); 
+                continue; 
             }
 
-            if(errFI_puedo>=0&&errFI_puedo<100)
-            {   //NO PUEDO ANDAR
-                int idFil=localizarSignal(getpid(),numFil);
-                printf("%d",errFI_pausa);
-                fflush(stdout);
-                if(idFil>=0)
-                {
-                    if(errFI_puedo==0)
-                    {
-                        errFI_puedo=30;
-                    }
-                    //printf("Soy %d y no puedo andar. Busco y espero un mensaje de tipo %d.\n",getpid(),errFI_puedo);
-                    //fflush(stdout);
-                    //Espera a recibir un mensaje de tipo errFI_puedo
-                    msgrcv(buzon,&msg,sizeof(mensaje)-sizeof(long),errFI_puedo,0);
-                    zona=FI_andar();
-                    //Cuando lo reciba, SE MUEVE Y AVISA AL DE DETRAS
-                    //Enviar un mensaje de tipo idFil
-                    //printf("He terminado de esperar. Me voy a mover ya.\n");
-                    //fflush(stdout);
+            int idFil=localizarSignal(getpid(),numFil); 
+            int zonaPrevia=zona; 
+            zona=FI_andar(); 
+            pausado=0;
+            signal_semaforo(semid,0);
 
-
-                    msg.info=0;
-                    msg.tipo=idFil;
-                    if(msg.tipo==0)
-                    {
-                        msg.tipo=30;
-                    }
-                    //printf("\nSoy el filosofo %d. Intento enviar el mensaje %d con %ld tipo.\n", idFil, msg.info,msg.tipo);
-                    //fflush(stdout);
-                    int enviado=msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
-                    if(enviado==0)
-                    {
-                        //printf("\nSoy el filosofo %d, con PID %d. Aviso que ya me he podido mover.\n",idFil, getpid());
-                        //fflush(stdout);
-                    }else
-                    {
-                        perror("Error en msgsnd");
-                        //printf("No se ha podido enviar el mensaje.\n");   
-                        //fflush(stdout);
-                    }
-                }else
-                {
-                    //printf("No se ha encontrado a nadie.\n");
-                    return 1;
-                }
+            if(zona==PUENTE)
+            {
+                wait_semaforo(semid,1);
             }
-            else
-            {   //ANDA Y AVISA
-                zona=FI_andar();
-                //Envia un mensaje de tipo idFil para avisar que se va a mover
-                //printf("Soy %d, puedo andar. Me buscare\n",getpid());
-                //fflush(stdout);
-                int idFil=localizarSignal(getpid(),numFil);
-                
-                if(idFil==-1)
-                {
-                    //printf("Filosofo no encontrado\n");
-                    //fflush(stdout);
-                    return 1;
-                }
-
-                    msg.info=0;
-                    msg.tipo=idFil;
-                    if(msg.tipo==0)
-                    {
-                        msg.tipo=30;
-                    }
-                    int enviado=msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
-                    if(enviado==0)
-                    {
-                        //printf("\nSoy el filosofo %d, con PID %d. Ya me he movido hacia delante.\n",idFil, getpid());
-                        //fflush(stdout);
-                    }
-                    else
-                    {
-                        perror("Error en msgsnd");  
-                        //printf("No se ha podido enviar el mensaje.\n");
-                        //fflush(stdout);
-                    }
             
-                
+            if(zonaPrevia==PUENTE&&zona!=PUENTE)
+            {
+                signal_semaforo(semid,1);
             }
 
-        
+            
 
+            //-------------------------------------//
             if(zona == ENTRADACOMEDOR)
             {
                 FI_entrarAlComedor(0);
@@ -476,8 +424,9 @@ int main (int argc, char *argv[]){
             //FALTA EL PUENTE
 
 
-            signal_semaforo(semid,0);
         }
+
+        //FIN DEL CIRCUITO
         err= FI_finFilOsofo();
         if(err ==-1)
         {
@@ -506,7 +455,7 @@ int main (int argc, char *argv[]){
     err=FI_fin();
     if(err<0)
     {
-        //printf("Error al hacer FI_fin...\n");
+        printf("Error al hacer FI_fin...\n");
         return -1;
     }
 
@@ -531,5 +480,5 @@ int main (int argc, char *argv[]){
     recorra el bucle hasta que encuente su pid dentro de el mismo, cuando eso suceda, entonces podra
     mirar el otro campo del struct y conocer quien es (es la idea, no se 100% asegurado si funciona)
     Vale creo que si funciona, hasta que no confirmes tu tambien no aseguro nada por si acaso
-
+    3.- Los pendejitos andan sin chocarse 
     */
