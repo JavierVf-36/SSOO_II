@@ -137,6 +137,13 @@ void manejadora_salida(int sig) {
     eliminar_sem();
     liberar_mem();
     eliminar_buzon(buzon);
+
+    int err=FI_fin();
+    if(err<0)
+    {
+        printf("Error al hacer FI_fin...\n");
+        return -1;
+    }
     exit(0);
 }
 
@@ -477,42 +484,19 @@ int main (int argc, char *argv[]){
                 int plato=-1;
                 for(int i=0;i<5;i++)
                 {
-                    if(mem->platos_libres[i]==0)
-                    {
-                        mem->platos_libres[i]=getpid();
-                        if(i==0){
-                            mem->tenedores[0]=getpid();
-                            mem->tenedores[4]=getpid();
-                        }else{
-                            mem->tenedores[i]= getpid();
-                            mem->tenedores[i-1]=getpid();
-                        }
-                        plato=i;
+                   if (mem->platos_libres[i] == 0) {
+                        plato = i;
+                        mem->platos_libres[i] = getpid();  // Ocupar el plato
                         break;
-                    }
+                   }   
+                    
                 }
 
-                if(plato==-1)
-                {
-                    printf("Error al elegir plato...\n");
-                    return -1;
-                }
+
+                //si plato es -1 está esperando en la antesala, no encontró plato
                 
-                FI_entrarAlComedor(plato);
-                
+                FI_entrarAlComedor(plato);                
                 signal_semaforo(semid,3);
-
-
-
-                //bucle buscvar sitio libre
-                //si lo encuentra, lo ocupa y sale del bucle
-                //signal_semaforo(semid,0);
-                //si no lo encuentra, se queda esperando
-                //cuando sale de comer poner su hueco a 0 para que otro pueda ocuparlo
-                //seccion critica para elegir sitio en comedor
-            
-
-
                 
                 
 
@@ -538,110 +522,49 @@ int main (int argc, char *argv[]){
                     else if(zona2 == SILLACOMEDOR)
                     {
                         
-                        int comiendo;
-                        for(int i=0;i<5;i++)
-                        {
-                            if(mem->platos_libres[i]==getpid())
-                            {
-                                for(int i=0; i<5;i++)
-                                {
-                                   // printf("Tenedor %d: %d\n", i, mem->tenedores[i]);
-                                   // fflush(stdout);
-                                }
-                            //ENTRA AQUÏ PERO NO DONDE LOS MEM TENEDORES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                                if(i==0 && mem->tenedores[0]==getpid() && mem->tenedores[4]==getpid())
-                                {
-                                    FI_cogerTenedor(TENEDORIZQUIERDO);
-                                    FI_cogerTenedor(TENEDORDERECHO);
-                                  //  printf("cojo tenedores\n");
-                                  //  fflush(stdout);
-                                    do
-                                    {
-                                        comiendo=FI_comer();
-                                    } while (comiendo==SILLACOMEDOR);
+                        if(plato!=-1){
+                            int tenedor_izq=plato;
+                            int tenedor_der=(plato+4) % 5;
+                        
+
+                            while(1){
+                                wait_semaforo(semid, 3);
+                                if(mem->tenedores[tenedor_izq]==0 && mem->tenedores[tenedor_der]==0){
+                                    mem->tenedores[tenedor_izq]=getpid();
+                                    mem->tenedores[tenedor_der]=getpid();
+                                    signal_semaforo(semid, 3);
                                     break;
-                                }else{
-                                    while(1)
-                                    {
-                                        if(mem->tenedores[0]==getpid() && mem->tenedores[4]==getpid())
-                                        {
-                                            FI_cogerTenedor(TENEDORIZQUIERDO);
-                                            FI_cogerTenedor(TENEDORDERECHO);
-                                       //     printf("cojo tenedores\n");
-                                        //    fflush(stdout);
-                                            do
-                                            {
-                                                comiendo=FI_comer();
-                                            } while (comiendo==SILLACOMEDOR);
-                                            break;
-                                        }
-                                    //ESPERA OCUPADA MWJORABLE!!!!
-                                    }
-                                   
                                 }
+                                signal_semaforo(semid, 3);
 
-                                if(i!=0 && mem->tenedores[i]==getpid() && mem->tenedores[i-1]==getpid())
-                                {
-                                    FI_cogerTenedor(TENEDORIZQUIERDO);
-                                    FI_cogerTenedor(TENEDORDERECHO);
-                                 //   printf("cojo tenedores\n");
-                                 //   fflush(stdout);
-                                    do
-                                            {
-                                                comiendo=FI_comer();
-                                            } while (comiendo==SILLACOMEDOR);
-                                    break;
-                                }else{
-                                    while(1)
-                                    {
-                                        if(mem->tenedores[i]==getpid() && mem->tenedores[i-1]==getpid())
-                                        {
-                                            FI_cogerTenedor(TENEDORIZQUIERDO);
-                                            FI_cogerTenedor(TENEDORDERECHO);
-                                       //     printf("cojo tenedores\n");
-                                   // fflush(stdout);
-                                            do
-                                            {
-                                                comiendo=FI_comer();
-                                            } while (comiendo==SILLACOMEDOR);
-                                            break;
-                                        }
-                                    //ESPERA OCUPADA MWJORABLE!!!!
-                                    }
+                            }
 
-                                    //ESPERA OCUPADA MWJORABLE!!!!
-                                }
 
-                                    
+                            FI_cogerTenedor(TENEDORIZQUIERDO);
+                            FI_cogerTenedor(TENEDORDERECHO);
+                            
+                            int comiendo;
+
+                            do{
+                                comiendo=FI_comer();
+                            }while (comiendo==SILLACOMEDOR);
+                            
+
+                            wait_semaforo(semid,3);
+                            FI_dejarTenedor(TENEDORDERECHO);
+                            FI_dejarTenedor(TENEDORIZQUIERDO);
+                            mem->tenedores[tenedor_der]=0;
+                            mem->tenedores[tenedor_izq]=0;
+                            signal_semaforo(semid,3);
+
+                            mem->platos_libres[plato]=0;
+
+
+                        }            
             
-                                break;
-                            }
-                        
-                        }
-
-                        
-                        
-                        //soltar tenedores
-                        
-
-                        for(int i=0;i<5;i++)
-                        {
-                            if(mem->platos_libres[i]==getpid())
-                            {
-                                FI_dejarTenedor(TENEDORIZQUIERDO);
-                                FI_dejarTenedor(TENEDORDERECHO);
-                                mem->platos_libres[i]=0;
-                                if(i==0){
-                                    mem->tenedores[0]=0;
-                                    mem->tenedores[4]=0;
-                                }else{
-                                    mem->tenedores[i]=0;
-                                    mem->tenedores[i-1]=0;
-                                }
-                                break;
-                            }
-                        }
-                        //poner a 0 mi plato
+                       
+                        //eliminar puntero memoria
+                        shmdt(mem);
                         break;
                     }
                     
