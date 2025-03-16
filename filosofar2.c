@@ -347,7 +347,7 @@ int main (int argc, char *argv[]){
         
         int nVueltas=0;
         int zona=-1;
-        
+        int zonaPrevia;
         while(nVueltas<numVuel)
         {
             
@@ -379,19 +379,22 @@ int main (int argc, char *argv[]){
                     //printf("He avisado a %d de que no me puedo mover.\n",errFI_puedo);
                     //fflush(stdout); 
                 }
-                do{
-                    msgrcv(buzon,&msg,sizeof(mensaje)-sizeof(long),idFil,IPC_NOWAIT);
-                    if(msg.info!=0)
-                    {
-                        msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
-                    }
 
-                }while(msg.info!=0);
-                idFil=localizarSignal(getpid(),numFil);
+
+                mensaje recibido;
+                do
+                {    
+                    msgrcv(buzon,&recibido,sizeof(mensaje)-sizeof(long),80,0);
+                    if(recibido.info!=idFil)
+                    {
+                        msgsnd(buzon,&recibido,sizeof(mensaje)-sizeof(long),0);
+                    }
+                }while(recibido.info!=idFil);
                 //printf("%d me ha avisado de que me mueva. soy %d\n",errFI_puedo,idFil);
                 //fflush(stdout);
             }
                 //PUEDES ANDAR
+                zonaPrevia=zona;
                 zona=FI_andar();
                 //printf("Soy %d y he andado. aviso de que he andado\n",idFil);
                 //fflush(stdout);
@@ -400,9 +403,9 @@ int main (int argc, char *argv[]){
                 if(recibido>0) //si no recibe nada, sigue adelante
                 {
                     mensaje aAvisar;
-                    aAvisar.tipo=msg.info;
-                    aAvisar.info=0; //(da igual) 
-                    //printf("Recibido. voy a avisar a %d de que se mueva. soy %d\n",aAvisar.tipo,idFil);
+                    aAvisar.tipo=80;
+                    aAvisar.info=msg.info;
+                    //printf("Recibido. voy a avisar a %d de que se mueva. soy %d\n",msg.tipo,idFil);
                     //fflush(stdout);
                     msgsnd(buzon,&aAvisar,sizeof(mensaje)-sizeof(long),0);
                 }else
@@ -411,6 +414,17 @@ int main (int argc, char *argv[]){
                     //fflush(stdout);
                 }
             
+
+                if(zonaPrevia==CAMPO&&zona==PUENTE)
+                {
+                    wait_semaforo(semid,1);
+                }
+
+                if(zonaPrevia==PUENTE&&zona==CAMPO)
+                {
+                    signal_semaforo(semid,1);
+                }
+
 
             if(errFI_puedo ==-1)
             {
@@ -423,7 +437,6 @@ int main (int argc, char *argv[]){
             }
 
                 
-            int zonaPrevia=zona; 
              
 
             //seccion critica para elegir sitio en comedor
