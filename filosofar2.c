@@ -142,7 +142,7 @@ void manejadora_salida(int sig) {
     if(err<0)
     {
         printf("Error al hacer FI_fin...\n");
-        return -1;
+        return;
     }
     exit(0);
 }
@@ -400,37 +400,34 @@ int main (int argc, char *argv[]){
                 //printf("%d me ha avisado de que me mueva. soy %d\n",errFI_puedo,idFil);
                 //fflush(stdout);
             }
-                //PUEDES ANDAR
-                zonaPrevia=zona;
-                zona=FI_andar();
-                //printf("Soy %d y he andado. aviso de que he andado\n",idFil);
+            //PUEDES ANDAR
+            zonaPrevia=zona;
+            zona=FI_andar();
+            //printf("Soy %d y he andado. aviso de que he andado\n",idFil);
+            //fflush(stdout);
+            //comprueba si debe avisar a alguien que ha andado
+            int recibido=msgrcv(buzon,&msg,sizeof(mensaje)-sizeof(long),idFil,IPC_NOWAIT);
+            if(recibido>0) //si no recibe nada, sigue adelante
+            {
+                mensaje aAvisar;
+                aAvisar.tipo=80;
+                aAvisar.info=msg.info;
+                //printf("Recibido. voy a avisar a %d de que se mueva. soy %d\n",msg.tipo,idFil);
                 //fflush(stdout);
-                //comprueba si debe avisar a alguien que ha andado
-                int recibido=msgrcv(buzon,&msg,sizeof(mensaje)-sizeof(long),idFil,IPC_NOWAIT);
-                if(recibido>0) //si no recibe nada, sigue adelante
-                {
-                    mensaje aAvisar;
-                    aAvisar.tipo=80;
-                    aAvisar.info=msg.info;
-                    //printf("Recibido. voy a avisar a %d de que se mueva. soy %d\n",msg.tipo,idFil);
-                    //fflush(stdout);
-                    msgsnd(buzon,&aAvisar,sizeof(mensaje)-sizeof(long),0);
-                }else
-                {
-                    //printf("No habia nadie a quien avisar que andara. soy %d\n",idFil);
-                    //fflush(stdout);
-                }
+                msgsnd(buzon,&aAvisar,sizeof(mensaje)-sizeof(long),0);
+            }
+            
             
 
-                if(zonaPrevia==CAMPO&&zona==PUENTE)
-                {
-                    wait_semaforo(semid,1);
-                }
+            if(zonaPrevia==CAMPO&&zona==PUENTE)
+            {
+               wait_semaforo(semid,1);
+            }
 
-                if(zonaPrevia==PUENTE&&zona==CAMPO)
-                {
-                    signal_semaforo(semid,1);
-                }
+            if(zonaPrevia==PUENTE&&zona==CAMPO)
+            {
+                signal_semaforo(semid,1);
+            }
 
 
             if(errFI_puedo ==-1)
@@ -468,6 +465,7 @@ int main (int argc, char *argv[]){
             }
 
 
+
             if(zona == ENTRADACOMEDOR)
             {   
 
@@ -503,18 +501,66 @@ int main (int argc, char *argv[]){
                 while(1)
                 {
                     errFI_puedo=FI_puedoAndar();
-                    if(errFI_puedo ==-1)
-                    {
-                        return -1;
-                    }
-                    
                     errFI_pausa=FI_pausaAndar();
+                    if(idFil==0)
+                    {
+                        idFil=30;
+                    }
+
+                    if(errFI_puedo!=100)
+                    {   //NO PUEDES ANDAR
+
+                        if(errFI_puedo==0)
+                        {
+                            errFI_puedo=30;
+                        }
+
+                        msg.tipo=errFI_puedo;
+                        msg.info=idFil;
+                        printf("He entrado. Soy %d y %d no me deja moverme.\n",idFil,errFI_puedo);
+                        fflush(stdout);
+                        int enviado=msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
+                        if(enviado==0)
+                        {
+                            printf("He avisado a %d de que no me puedo mover.\n",errFI_puedo);
+                            fflush(stdout); 
+                        }
+
+
+                        mensaje recibido;
+                        do
+                        {    
+                            msgrcv(buzon,&recibido,sizeof(mensaje)-sizeof(long),80,0);
+                            if(recibido.info!=idFil)
+                            {
+                                msgsnd(buzon,&recibido,sizeof(mensaje)-sizeof(long),0);
+                            }
+                        }while(recibido.info!=idFil);
+                        printf("%d me ha avisado de que me mueva. soy %d\n",errFI_puedo,idFil);
+                        fflush(stdout);
+                    }
+                    //PUEDES ANDAR
+                    zonaPrevia=zona;
+                    int zona2=FI_andar();
+                    printf("Soy %d y he andado. aviso de que he andado\n",idFil);
+                    fflush(stdout);
+                    //comprueba si debe avisar a alguien que ha andado
+                    int recibido=msgrcv(buzon,&msg,sizeof(mensaje)-sizeof(long),idFil,IPC_NOWAIT);
+                    if(recibido>0) //si no recibe nada, sigue adelante
+                    {
+                        mensaje aAvisar;
+                        aAvisar.tipo=80;
+                        aAvisar.info=msg.info;
+                        printf("Recibido. voy a avisar a %ld de que se mueva. soy %d\n",msg.tipo,idFil);
+                        fflush(stdout);
+                        msgsnd(buzon,&aAvisar,sizeof(mensaje)-sizeof(long),0);
+                    }
+
                     if(errFI_pausa ==-1)
                     {
                         return -1;
                     }
 
-                    int zona2=FI_andar();
                     if(zona2==-1)
                     {
                         return -1;

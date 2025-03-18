@@ -448,7 +448,7 @@ int main (int argc, char *argv[]){
                     printf("Error al elegir plato...\n");
                     return -1;
                 }
-                
+                plato=4;
                 FI_entrarAlComedor(plato);
                 
                 signal_semaforo(semid,3);
@@ -494,18 +494,13 @@ int main (int argc, char *argv[]){
                         {
                             if(mem->platos_libres[i]==getpid())
                             {
-                                for(int i=0; i<5;i++)
-                                {
-                                    printf("Tenedor %d: %d\n", i, mem->tenedores[i]);
-                                    fflush(stdout);
-                                }
+                                
                             //ENTRA AQUÏ PERO NO DONDE LOS MEM TENEDORES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                                 if(i==0 && mem->tenedores[0]==getpid() && mem->tenedores[4]==getpid())
                                 {
                                     FI_cogerTenedor(TENEDORIZQUIERDO);
                                     FI_cogerTenedor(TENEDORDERECHO);
-                                    printf("cojo tenedores\n");
-                                    fflush(stdout);
+                                    
                                     do
                                     {
                                         comiendo=FI_comer();
@@ -518,8 +513,7 @@ int main (int argc, char *argv[]){
                                         {
                                             FI_cogerTenedor(TENEDORIZQUIERDO);
                                             FI_cogerTenedor(TENEDORDERECHO);
-                                            printf("cojo tenedores\n");
-                                            fflush(stdout);
+                                            
                                             do
                                             {
                                                 comiendo=FI_comer();
@@ -535,8 +529,7 @@ int main (int argc, char *argv[]){
                                 {
                                     FI_cogerTenedor(TENEDORIZQUIERDO);
                                     FI_cogerTenedor(TENEDORDERECHO);
-                                    printf("cojo tenedores\n");
-                                    fflush(stdout);
+                                   
                                     do
                                             {
                                                 comiendo=FI_comer();
@@ -549,8 +542,7 @@ int main (int argc, char *argv[]){
                                         {
                                             FI_cogerTenedor(TENEDORIZQUIERDO);
                                             FI_cogerTenedor(TENEDORDERECHO);
-                                            printf("cojo tenedores\n");
-                                    fflush(stdout);
+                                          
                                             do
                                             {
                                                 comiendo=FI_comer();
