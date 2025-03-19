@@ -207,7 +207,7 @@ int main (int argc, char *argv[]){
     }
     
 
-    semid=semget(IPC_PRIVATE, 4, IPC_CREAT|0600);
+    semid=semget(IPC_PRIVATE, 6, IPC_CREAT|0600);
     if(semid==-1)
     {
         printf("Error al crear semaforo...\n");
@@ -215,7 +215,7 @@ int main (int argc, char *argv[]){
     }
      
     int ctl;
-    ctl=semctl(semid,0,SETVAL,1); //semaforo de andar
+    ctl=semctl(semid,0,SETVAL,1); //semaforo de andar por comedor
 
     if(ctl==-1)
     {
@@ -246,6 +246,19 @@ int main (int argc, char *argv[]){
         return 1;
     }
 
+    ctl=semctl(semid,4,SETVAL,4);   //detenerse antes de entrar al comedor
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
+
+    ctl=semctl(semid,5,SETVAL,4);  
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
 
 
     memoria memoriam;
@@ -378,16 +391,7 @@ int main (int argc, char *argv[]){
 
                 msg.tipo=errFI_puedo;
                 msg.info=idFil;
-                //printf("He entrado. Soy %d y %d no me deja moverme.\n",idFil,errFI_puedo);
-                //fflush(stdout);
                 int enviado=msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
-                if(enviado==0)
-                {
-                    //printf("He avisado a %d de que no me puedo mover.\n",errFI_puedo);
-                    //fflush(stdout); 
-                }
-
-
                 mensaje recibido;
                 do
                 {    
@@ -397,14 +401,10 @@ int main (int argc, char *argv[]){
                         msgsnd(buzon,&recibido,sizeof(mensaje)-sizeof(long),0);
                     }
                 }while(recibido.info!=idFil);
-                //printf("%d me ha avisado de que me mueva. soy %d\n",errFI_puedo,idFil);
-                //fflush(stdout);
             }
             //PUEDES ANDAR
             zonaPrevia=zona;
             zona=FI_andar();
-            //printf("Soy %d y he andado. aviso de que he andado\n",idFil);
-            //fflush(stdout);
             //comprueba si debe avisar a alguien que ha andado
             int recibido=msgrcv(buzon,&msg,sizeof(mensaje)-sizeof(long),idFil,IPC_NOWAIT);
             if(recibido>0) //si no recibe nada, sigue adelante
@@ -412,8 +412,6 @@ int main (int argc, char *argv[]){
                 mensaje aAvisar;
                 aAvisar.tipo=80;
                 aAvisar.info=msg.info;
-                //printf("Recibido. voy a avisar a %d de que se mueva. soy %d\n",msg.tipo,idFil);
-                //fflush(stdout);
                 msgsnd(buzon,&aAvisar,sizeof(mensaje)-sizeof(long),0);
             }
             
@@ -426,6 +424,12 @@ int main (int argc, char *argv[]){
 
             if(zonaPrevia==PUENTE&&zona==CAMPO)
             {
+                errFI_puedo=FI_puedoAndar();
+                    if(errFI_puedo==100)
+                    {
+                        errFI_pausa=FI_pausaAndar();
+                        zona=FI_andar();
+                    }
                 signal_semaforo(semid,1);
             }
 
@@ -436,7 +440,7 @@ int main (int argc, char *argv[]){
             }
 
             if(errFI_pausa ==-1)
-            {;
+            {
                 return -1;     
             }
 
@@ -451,17 +455,9 @@ int main (int argc, char *argv[]){
             //-------------------------------------//
 
             
-            if(zona==ANTESALA){
-            
-                wait_semaforo(semid,2);//entra en la antesala o espera fuera
-                //printf("Filosofo %d en la antesala\n", idFil);
-                //fflush(stdout);
-                //seccion critica para elegir si se puede entrar en el comedor
-                
-                //entrara a la zona critica de elegir si se puede entrara en el comedor
-                //salir y entrar al comedor
-                signal_semaforo(semid,2);//salir de antesala
-                
+            if(zona==ANTESALA&&zonaPrevia==CAMPO)
+            {
+                wait_semaforo(semid,5);
             }
 
 
@@ -476,7 +472,8 @@ int main (int argc, char *argv[]){
                     exit(1);
                 }
                 
-                
+                //SE TIENE QUE PARAR AQUI ANTES DE LA ELECCION DEL PLATO 
+                wait_semaforo(semid,4); 
                 
                 wait_semaforo(semid,3);
                 int plato=-1;
@@ -493,79 +490,27 @@ int main (int argc, char *argv[]){
 
                 //si plato es -1 está esperando en la antesala, no encontró plato
                 
-                FI_entrarAlComedor(plato);                
-                signal_semaforo(semid,3);
-                
-                
-
+                FI_entrarAlComedor(plato);               
+                signal_semaforo(semid,3);       
                 while(1)
-                {
+                {      
+
+
+                    wait_semaforo(semid,0);
                     errFI_puedo=FI_puedoAndar();
-                    errFI_pausa=FI_pausaAndar();
-                    if(idFil==0)
+                    if(errFI_puedo==100)
                     {
-                        idFil=30;
-                    }
-
-                    if(errFI_puedo!=100)
-                    {   //NO PUEDES ANDAR
-
-                        if(errFI_puedo==0)
+                        errFI_pausa=FI_pausaAndar();
+                        zona=FI_andar();
+                        if(zonaPrevia==ENTRADACOMEDOR&&zona!=ENTRADACOMEDOR)
                         {
-                            errFI_puedo=30;
+                            signal_semaforo(semid,5); 
                         }
-
-                        msg.tipo=errFI_puedo;
-                        msg.info=idFil;
-                        printf("He entrado. Soy %d y %d no me deja moverme.\n",idFil,errFI_puedo);
-                        fflush(stdout);
-                        int enviado=msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
-                        if(enviado==0)
-                        {
-                            printf("He avisado a %d de que no me puedo mover.\n",errFI_puedo);
-                            fflush(stdout); 
-                        }
-
-
-                        mensaje recibido;
-                        do
-                        {    
-                            msgrcv(buzon,&recibido,sizeof(mensaje)-sizeof(long),80,0);
-                            if(recibido.info!=idFil)
-                            {
-                                msgsnd(buzon,&recibido,sizeof(mensaje)-sizeof(long),0);
-                            }
-                        }while(recibido.info!=idFil);
-                        printf("%d me ha avisado de que me mueva. soy %d\n",errFI_puedo,idFil);
-                        fflush(stdout);
+                        zonaPrevia=zona;
                     }
-                    //PUEDES ANDAR
-                    zonaPrevia=zona;
-                    int zona2=FI_andar();
-                    printf("Soy %d y he andado. aviso de que he andado\n",idFil);
-                    fflush(stdout);
-                    //comprueba si debe avisar a alguien que ha andado
-                    int recibido=msgrcv(buzon,&msg,sizeof(mensaje)-sizeof(long),idFil,IPC_NOWAIT);
-                    if(recibido>0) //si no recibe nada, sigue adelante
-                    {
-                        mensaje aAvisar;
-                        aAvisar.tipo=80;
-                        aAvisar.info=msg.info;
-                        printf("Recibido. voy a avisar a %ld de que se mueva. soy %d\n",msg.tipo,idFil);
-                        fflush(stdout);
-                        msgsnd(buzon,&aAvisar,sizeof(mensaje)-sizeof(long),0);
-                    }
-
-                    if(errFI_pausa ==-1)
-                    {
-                        return -1;
-                    }
-
-                    if(zona2==-1)
-                    {
-                        return -1;
-                    }
-                    else if(zona2 == SILLACOMEDOR)
+                    signal_semaforo(semid,0);
+                   
+                    if(zona == SILLACOMEDOR)
                     {
                         
                         if(plato!=-1){
@@ -611,6 +556,7 @@ int main (int argc, char *argv[]){
                        
                         //eliminar puntero memoria
                         shmdt(mem);
+                        signal_semaforo(semid,4);
                         break;
                     }
                     
