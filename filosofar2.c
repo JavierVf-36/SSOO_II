@@ -23,7 +23,9 @@ typedef struct memoria
     int tenedores[5];
     int platos_libres[5];
     infoFils infoFil[21];
-    int numFilosofos; //dentro del puente
+    int sentido_puente; //dentro del puente
+    int contador_personas;
+    int espera;
 }memoria;
 
 typedef struct mensaje
@@ -80,18 +82,7 @@ void wait_cero(int semid, int num_sem)
     }
 }
 
-void signal_semaforo(int semid, int num_sem){
-    struct sembuf operacion;
-    operacion.sem_num=num_sem;
-    operacion.sem_op=0;
-    operacion.sem_flg=0;
 
-    if(semop(semid, &operacion,1)==-1)
-    {
-        perror("Error en signal_semaforo");
-        exit(EXIT_FAILURE);
-    }
-}
 
 int eliminar_buzon(int buzon)
 {
@@ -235,7 +226,7 @@ int main (int argc, char *argv[]){
     }
     
 
-    semid=semget(IPC_PRIVATE, 7, IPC_CREAT|0600);
+    semid=semget(IPC_PRIVATE, 10, IPC_CREAT|0600);
     if(semid==-1)
     {
         printf("Error al crear semaforo...\n");
@@ -295,6 +286,26 @@ int main (int argc, char *argv[]){
         return 1;
     }
 
+    ctl=semctl(semid,7,SETVAL,1);  //semaforo memoria comparitda puente
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
+
+    ctl=semctl(semid,8,SETVAL,0);  //no puede entrar al puente
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
+
+    ctl=semctl(semid,9,SETVAL,1);  //memoria compartida de ver si hay alguien esperando puente
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
 
     memoria memoriam;
     
@@ -343,11 +354,6 @@ int main (int argc, char *argv[]){
 
 
 
-    
-
-    
-    //printf("\n");
-    //fflush(stdout);
     for(int i=0;i<numFil;i++){
         pid_t pid=fork();
         
@@ -375,6 +381,9 @@ int main (int argc, char *argv[]){
             {
                 return -1;
             }
+            mem->contador_personas=0;
+            mem->sentido_puente=-1;
+            mem->espera=0;
 
             //En memoria compartida se esta guardando correctamente:
             //1.- El pid del filosofo
@@ -452,20 +461,92 @@ int main (int argc, char *argv[]){
             
             
 
-            if(zonaPrevia==CAMPO&&zona==PUENTE)
+            if(zonaPrevia==CAMPO&&zona==PUENTE) //metiendote en el puente
             {
-               wait_semaforo(semid,1);
+                int puedo_entrar_puente=0;
+                do{
+                
+                    wait_semaforo(semid, 7);    //memoria
+
+                    memoria *mem = (memoria *)shmat(shm_inicio, NULL, 0);
+                    if (mem == (void *)-1)
+                    {
+                        perror("Error en shmat (hijo)");
+                        exit(1);
+                    }
+
+
+                    if(mem->contador_personas<2 && (mem->sentido_puente==-1 || mem->sentido_puente==0)){    //si puente esta vacio o estan en mi sentido y hay 0 o 1
+                        puedo_entrar_puente=1;
+                        mem->sentido_puente=0;
+                        mem->contador_personas+=1;
+                        shmdt(mem);
+                        signal_semaforo(semid, 7); //libero la memoria para que puedan mirarla
+                    }else if (mem->contador_personas<2 && (mem->sentido_puente==-1 || mem->sentido_puente==1)){
+                        puedo_entrar_puente=1;
+                        mem->sentido_puente=1;
+                        mem->contador_personas+=1;
+                        shmdt(mem);
+                        signal_semaforo(semid, 7); //libero la memoria para que puedan mirarla
+                    }else{
+                        wait_semaforo(semid, 9);    //solo uno modifica memoria o lee memoria de espera
+                        mem->espera=1;  //estoy esperando
+                        signal_semaforo(semid, 9);
+                        shmdt(mem);
+                        signal_semaforo(semid, 7); //libero la memoria para que puedan miararla
+                        wait_semaforo(semid, 8);    //no puedo entrar al puente, me bloqueo
+                        
+                    }
+
+                    
+                }while(puedo_entrar_puente!=1);
+
+               
+                wait_semaforo(semid,1);//puede entrar al puente, dos personas solo, QUITABLE!!!!!
+               
+                
             }
 
             if(zonaPrevia==PUENTE&&zona==CAMPO)
             {
-                errFI_puedo=FI_puedoAndar();
+                int paso=0;
+                do{
+                    errFI_puedo=FI_puedoAndar();
                     if(errFI_puedo==100)
                     {
                         errFI_pausa=FI_pausaAndar();
                         zona=FI_andar();
+                        paso+=1;
                     }
-                signal_semaforo(semid,1);
+
+                    
+                }while(paso<2);
+
+                wait_semaforo(semid, 9);    //ver memeoria compartida
+                memoria *mem = (memoria *)shmat(shm_inicio, NULL, 0);
+                if (mem == (void *)-1)
+                {
+                    perror("Error en shmat (hijo)");
+                    exit(1);
+                }
+                if(mem->espera==1){
+                    signal_semaforo(semid, 8);  //hay alguien esperando y le avisamos pa q pase
+                    mem->espera=0;
+                    mem->contador_personas-=1;
+                    if(mem->contador_personas==0){
+                        mem->sentido_puente=-1;
+                    }
+                }else{
+                    mem->contador_personas-=1;
+                    if(mem->contador_personas==0){
+                        mem->sentido_puente=-1;
+                    }
+                }
+
+                shmdt(mem);
+
+                signal_semaforo(semid, 9);  
+                signal_semaforo(semid,1);   //he salido del puente, conteo personas, QUITABLE!!!!!!
             }
 
 
