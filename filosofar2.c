@@ -23,6 +23,7 @@ typedef struct memoria
     int tenedores[5];
     int platos_libres[5];
     infoFils infoFil[21];
+    int numFilosofos; //dentro del puente
 }memoria;
 
 typedef struct mensaje
@@ -56,6 +57,33 @@ void signal_semaforo(int semid, int num_sem){
     struct sembuf operacion;
     operacion.sem_num=num_sem;
     operacion.sem_op=1;
+    operacion.sem_flg=0;
+
+    if(semop(semid, &operacion,1)==-1)
+    {
+        perror("Error en signal_semaforo");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void wait_cero(int semid, int num_sem)
+{
+    struct sembuf operacion;
+    operacion.sem_num=num_sem;
+    operacion.sem_op=0;
+    operacion.sem_flg=0;
+
+    if(semop(semid, &operacion, 1)==-1)
+    {
+        perror("Error en wait_semaforo");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void signal_semaforo(int semid, int num_sem){
+    struct sembuf operacion;
+    operacion.sem_num=num_sem;
+    operacion.sem_op=0;
     operacion.sem_flg=0;
 
     if(semop(semid, &operacion,1)==-1)
@@ -207,7 +235,7 @@ int main (int argc, char *argv[]){
     }
     
 
-    semid=semget(IPC_PRIVATE, 6, IPC_CREAT|0600);
+    semid=semget(IPC_PRIVATE, 7, IPC_CREAT|0600);
     if(semid==-1)
     {
         printf("Error al crear semaforo...\n");
@@ -215,7 +243,7 @@ int main (int argc, char *argv[]){
     }
      
     int ctl;
-    ctl=semctl(semid,0,SETVAL,1); //semaforo de andar por comedor
+    ctl=semctl(semid,0,SETVAL,1); //semaforo de andar por comedor en general
 
     if(ctl==-1)
     {
@@ -231,7 +259,7 @@ int main (int argc, char *argv[]){
         return 1;
     }
 
-    ctl=semctl(semid,2,SETVAL,4);   //semaforo antesala
+    ctl=semctl(semid,2,SETVAL,1);   //semaforo de mitad de campo a puente
 
     if(ctl==-1)
     {
@@ -253,7 +281,14 @@ int main (int argc, char *argv[]){
         return 1;
     }
 
-    ctl=semctl(semid,5,SETVAL,4);  
+    ctl=semctl(semid,5,SETVAL,4);  //semaforo entrada antesala
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
+
+    ctl=semctl(semid,6,SETVAL,1);  //semaforo templo (?)
     if(ctl==-1)
     {
         perror("Error al asignar el contador del semaforo.\n");
@@ -458,6 +493,7 @@ int main (int argc, char *argv[]){
             if(zona==ANTESALA&&zonaPrevia==CAMPO)
             {
                 wait_semaforo(semid,5);
+
             }
 
 
@@ -481,7 +517,7 @@ int main (int argc, char *argv[]){
                 {
                    if (mem->platos_libres[i] == 0) {
                         plato = i;
-                        mem->platos_libres[i] = getpid();  // Ocupar el plato
+                        mem->platos_libres[i] = getpid();  // Ocuparait_semaforo(semid,4);  el plato
                         break;
                    }   
                     
@@ -491,22 +527,26 @@ int main (int argc, char *argv[]){
                 //si plato es -1 está esperando en la antesala, no encontró plato
                 
                 FI_entrarAlComedor(plato);               
-                signal_semaforo(semid,3);       
+                signal_semaforo(semid,3);    
+               
+                //DA EL PASO DE ENTRAR AL COMEDOR Y AVISA A UNO DE LA ANTESALA QUE ENTRE
+                int paso=1;
                 while(1)
-                {      
+                {       // 
 
-
+                    
                     wait_semaforo(semid,0);
                     errFI_puedo=FI_puedoAndar();
                     if(errFI_puedo==100)
                     {
                         errFI_pausa=FI_pausaAndar();
                         zona=FI_andar();
-                        if(zonaPrevia==ENTRADACOMEDOR&&zona!=ENTRADACOMEDOR)
-                        {
-                            signal_semaforo(semid,5); 
-                        }
                         zonaPrevia=zona;
+                        if(paso==1)
+                        {
+                            signal_semaforo(semid,5);
+                            paso-=1;
+                        }
                     }
                     signal_semaforo(semid,0);
                    
@@ -551,12 +591,56 @@ int main (int argc, char *argv[]){
                             mem->platos_libres[plato]=0;
 
 
-                        }            
+                        }    
+                        
+                        
             
                        
                         //eliminar puntero memoria
                         shmdt(mem);
                         signal_semaforo(semid,4);
+
+
+                        /*****************************************/
+                        zonaPrevia=zona;
+                        do{
+                        wait_semaforo(semid,0); 
+                        errFI_puedo=FI_puedoAndar();
+                        if(errFI_puedo==100)
+                        {
+                            errFI_pausa=FI_pausaAndar();
+                            zona=FI_andar();
+                            zonaPrevia=zona;
+                        }
+                        signal_semaforo(semid,0);
+                        }while(zona!=CAMPO);
+                        /*****************************************/
+                        int total=40;
+                        do{
+                        errFI_puedo=FI_puedoAndar();
+                        if(errFI_puedo==100)
+                        {
+                        errFI_pausa=FI_pausaAndar();
+                        zona=FI_andar();
+                        zonaPrevia=zona;
+                        total-=1;
+                        }
+                        }while(total>0);
+                    /*****************************************/
+                        do{
+                            wait_semaforo(semid,2);
+                            errFI_puedo=FI_puedoAndar();
+                            if(errFI_puedo==100)
+                            {
+                            errFI_pausa=FI_pausaAndar();
+                            zona=FI_andar();
+                            zonaPrevia=zona;
+                            }
+                            signal_semaforo(semid,2);
+                            }while(zona!=PUENTE);
+                    /*****************************************/          
+
+
                         break;
                     }
                     
@@ -567,17 +651,16 @@ int main (int argc, char *argv[]){
                 FI_entrarAlTemplo(0);
                 while(1)
                 {
-                    errFI_puedo=FI_puedoAndar();
-                    if(errFI_puedo ==-1)
-                    {
-                        return -1;
-                    }
                     
-                    errFI_pausa=FI_pausaAndar();
-                    if(errFI_pausa ==-1)
+                    wait_semaforo(semid,6);
+                    errFI_puedo=FI_puedoAndar();
+                    if(errFI_puedo==100)
                     {
-                        return -1;
+                        errFI_pausa=FI_pausaAndar();
+                        zona=FI_andar();
+                        zonaPrevia=zona;
                     }
+                    signal_semaforo(semid,6);
 
                     int zona2=FI_andar();
                     if(zona2==-1)
