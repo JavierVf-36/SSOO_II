@@ -26,6 +26,7 @@ typedef struct memoria
     int sentido_puente; //dentro del puente
     int contador_personas;
     int espera;
+    int sitios_templo[3];
 }memoria;
 
 typedef struct mensaje
@@ -226,7 +227,7 @@ int main (int argc, char *argv[]){
     }
     
 
-    semid=semget(IPC_PRIVATE, 10, IPC_CREAT|0600);
+    semid=semget(IPC_PRIVATE, 12, IPC_CREAT|0600);
     if(semid==-1)
     {
         printf("Error al crear semaforo...\n");
@@ -307,6 +308,21 @@ int main (int argc, char *argv[]){
         return 1;
     }
 
+    ctl=semctl(semid,10,SETVAL,1);  //escoger sitio en templo
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
+
+    ctl=semctl(semid,11,SETVAL,1);  //andar templo
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
+
+
     memoria memoriam;
     
     int tamMemComp=FI_getTamaNoMemoriaCompartida();
@@ -372,6 +388,7 @@ int main (int argc, char *argv[]){
             {
                 mem->platos_libres[i]=0;
                 mem->tenedores[i]=0;
+                mem->sitios_templo[i]=0;
             }
 
             mem->infoFil[i].pidFil=getpid();
@@ -480,14 +497,12 @@ int main (int argc, char *argv[]){
                         puedo_entrar_puente=1;
                         mem->sentido_puente=0;
                         mem->contador_personas+=1;
-                        shmdt(mem);
-                        signal_semaforo(semid, 7); //libero la memoria para que puedan mirarla
+                       
                     }else if (mem->contador_personas<2 && (mem->sentido_puente==-1 || mem->sentido_puente==1)){
                         puedo_entrar_puente=1;
                         mem->sentido_puente=1;
                         mem->contador_personas+=1;
-                        shmdt(mem);
-                        signal_semaforo(semid, 7); //libero la memoria para que puedan mirarla
+               
                     }else{
                         wait_semaforo(semid, 9);    //solo uno modifica memoria o lee memoria de espera
                         mem->espera=1;  //estoy esperando
@@ -495,9 +510,11 @@ int main (int argc, char *argv[]){
                         shmdt(mem);
                         signal_semaforo(semid, 7); //libero la memoria para que puedan miararla
                         wait_semaforo(semid, 8);    //no puedo entrar al puente, me bloqueo
-                        
+                        continue;
                     }
 
+                    shmdt(mem);
+                    signal_semaforo(semid, 7); //libero la memoria para que puedan mirarla
                     
                 }while(puedo_entrar_puente!=1);
 
@@ -532,16 +549,13 @@ int main (int argc, char *argv[]){
                 if(mem->espera==1){
                     signal_semaforo(semid, 8);  //hay alguien esperando y le avisamos pa q pase
                     mem->espera=0;
-                    mem->contador_personas-=1;
-                    if(mem->contador_personas==0){
-                        mem->sentido_puente=-1;
-                    }
-                }else{
-                    mem->contador_personas-=1;
-                    if(mem->contador_personas==0){
-                        mem->sentido_puente=-1;
-                    }
+                    
                 }
+                mem->contador_personas-=1;
+                if(mem->contador_personas==0){
+                    mem->sentido_puente=-1;
+                }
+                
 
                 shmdt(mem);
 
@@ -549,16 +563,6 @@ int main (int argc, char *argv[]){
                 signal_semaforo(semid,1);   //he salido del puente, conteo personas, QUITABLE!!!!!!
             }
 
-
-            if(errFI_puedo ==-1)
-            {
-                return -1;
-            }
-
-            if(errFI_pausa ==-1)
-            {
-                return -1;     
-            }
 
                 
              
@@ -729,11 +733,41 @@ int main (int argc, char *argv[]){
             }
             else if(zona==TEMPLO)
             {
-                FI_entrarAlTemplo(0);
+               memoria *mem = (memoria *)shmat(shm_inicio, NULL, 0);
+                if (mem == (void *)-1)
+                {
+                    perror("Error en shmat (hijo)");
+                    exit(1);
+                }
+
+                int elegido=-1;
+                do{
+                    wait_semaforo(semid,10);
+                    
+                    for (int i = 0; i < 3; i++)
+                    {
+                        if(mem->sitios_templo[i]==0){
+                            mem->sitios_templo[i]=getpid();
+                            elegido=i;
+                        
+                            break;
+                        }
+                    }
+
+                    if(elegido==-1){
+                        signal_semaforo(semid,10);
+                    }else{
+                        FI_entrarAlTemplo(elegido);
+                        signal_semaforo(semid,10);
+                    }
+                    
+                   
+                }while(elegido==-1);
+
                 while(1)
                 {
                     
-                    wait_semaforo(semid,6);
+                    wait_semaforo(semid,11);
                     errFI_puedo=FI_puedoAndar();
                     if(errFI_puedo==100)
                     {
@@ -741,20 +775,35 @@ int main (int argc, char *argv[]){
                         zona=FI_andar();
                         zonaPrevia=zona;
                     }
-                    signal_semaforo(semid,6);
+                    signal_semaforo(semid,11);
 
-                    int zona2=FI_andar();
-                    if(zona2==-1)
+                    if(zona==-1)
                     {
                         return -1;
                     }
-                    else if(zona2 == SITIOTEMPLO){
+                    else if(zona == SITIOTEMPLO){
                         int meditar;
                         do
                         {
                             meditar=FI_meditar();
                         } while (meditar==SITIOTEMPLO);
                         nVueltas+=1;
+
+
+
+                        wait_semaforo(semid,6);
+                
+                        for (int i = 0; i < 3; i++)
+                        {
+                            if(mem->sitios_templo[i]==getpid()){
+                                mem->sitios_templo[i]=0;
+                                break;
+                            }
+                        }
+                
+                        signal_semaforo(semid,6);
+
+
                         break;
                         
                     }
