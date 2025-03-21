@@ -20,9 +20,14 @@ typedef struct infoFils
 
 typedef struct memoria
 {
+    int sentido_puente; //dentro del puente
+    int contador_personas;
+    int espera;
     int tenedores[5];
     int platos_libres[5];
     infoFils infoFil[21];
+    
+    int sitios_templo[3];
 }memoria;
 
 typedef struct mensaje
@@ -65,6 +70,22 @@ void signal_semaforo(int semid, int num_sem){
     }
 }
 
+void wait_cero(int semid, int num_sem)
+{
+    struct sembuf operacion;
+    operacion.sem_num=num_sem;
+    operacion.sem_op=0;
+    operacion.sem_flg=0;
+
+    if(semop(semid, &operacion, 1)==-1)
+    {
+        perror("Error en wait_semaforo");
+        exit(EXIT_FAILURE);
+    }
+}
+
+
+
 int eliminar_buzon(int buzon)
 {
     return msgctl(buzon,IPC_RMID,NULL);
@@ -88,6 +109,7 @@ int localizarSignal(pid_t pid, int numFil)
             return memm->infoFil[i].idFil;
         }
     }
+    shmdt(memm);
     return -1;
 }
 
@@ -130,13 +152,20 @@ void manejadora_salida(int sig) {
         exit(0);
     }
 
-    printf("\nHas pulsado CTRL+C. Eliminando semáforo y memoria compartida.\n");
+    printf("\nHas pulsado CTRL+C. Eliminando semáforo,memoria compartida y buzones.\n");
     fflush(stdout);
     
 
     eliminar_sem();
     liberar_mem();
     eliminar_buzon(buzon);
+
+    int err=FI_fin();
+    if(err<0)
+    {
+        printf("Error al hacer FI_fin...\n");
+        return;
+    }
     exit(0);
 }
 
@@ -167,7 +196,7 @@ int main (int argc, char *argv[]){
     numFil=atoi(argv[1]);
     int numVuel=atoi(argv[2]);
     int lentitud=atoi(argv[3]);
-    pid_t pid_hijo[numFil];
+    
     
     if(numFil<0 || numFil>MAXFILOSOFOS || numVuel<=0 || lentitud<0)
     {
@@ -185,9 +214,9 @@ int main (int argc, char *argv[]){
 
 
     struct DatosSimulaciOn ddssp;
-    ddssp.maxFilOsofosEnPuente=10;
+    ddssp.maxFilOsofosEnPuente=2;
     ddssp.maxUnaDirecciOnPuente=0;
-    ddssp.sitiosTemplo=10;
+    ddssp.sitiosTemplo=3;
     ddssp.nTenedores=5;
 
 
@@ -200,7 +229,7 @@ int main (int argc, char *argv[]){
     }
     
 
-    semid=semget(IPC_PRIVATE, 4, IPC_CREAT|0600);
+    semid=semget(IPC_PRIVATE, 13, IPC_CREAT|0600);
     if(semid==-1)
     {
         printf("Error al crear semaforo...\n");
@@ -208,7 +237,7 @@ int main (int argc, char *argv[]){
     }
      
     int ctl;
-    ctl=semctl(semid,0,SETVAL,1); //semaforo de andar
+    ctl=semctl(semid,0,SETVAL,1); //semaforo de andar por comedor en general
 
     if(ctl==-1)
     {
@@ -224,7 +253,7 @@ int main (int argc, char *argv[]){
         return 1;
     }
 
-    ctl=semctl(semid,2,SETVAL,4);   //semaforo antesala
+    ctl=semctl(semid,2,SETVAL,1);   //semaforo de mitad de campo a puente
 
     if(ctl==-1)
     {
@@ -239,17 +268,75 @@ int main (int argc, char *argv[]){
         return 1;
     }
 
+    ctl=semctl(semid,4,SETVAL,4);   //detenerse antes de entrar al comedor
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
+
+    ctl=semctl(semid,5,SETVAL,4);  //semaforo entrada antesala
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
+
+    ctl=semctl(semid,6,SETVAL,1);  //semaforo templo 
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
+
+    ctl=semctl(semid,7,SETVAL,1);  //semaforo memoria comparitda puente
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
+
+    ctl=semctl(semid,8,SETVAL,0);  //no puede entrar al puente
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
+
+    ctl=semctl(semid,9,SETVAL,1);  //memoria compartida de ver si hay alguien esperando puente
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
+
+    ctl=semctl(semid,10,SETVAL,1);  //escoger sitio en templo
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
+
+    ctl=semctl(semid,11,SETVAL,1);  //andar templo
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
+
+    ctl=semctl(semid,12,SETVAL,1);  //andar templo
+    if(ctl==-1)
+    {
+        perror("Error al asignar el contador del semaforo.\n");
+        return 1;
+    }
 
 
     memoria memoriam;
     
     int tamMemComp=FI_getTamaNoMemoriaCompartida();
     
-    for(int i=0; i<5; i++){
-        memoriam.platos_libres[i]=0;
-    }
 
-    
 
     for(int i=0; i<numFil; i++){    //filosofos que no existeb a -1
         memoriam.infoFil[i].pidFil=-1;
@@ -288,11 +375,6 @@ int main (int argc, char *argv[]){
 
 
 
-    
-
-    
-    //printf("\n");
-    //fflush(stdout);
     for(int i=0;i<numFil;i++){
         pid_t pid=fork();
         
@@ -311,6 +393,7 @@ int main (int argc, char *argv[]){
             {
                 mem->platos_libres[i]=0;
                 mem->tenedores[i]=0;
+                mem->sitios_templo[i]=0;
             }
 
             mem->infoFil[i].pidFil=getpid();
@@ -320,6 +403,11 @@ int main (int argc, char *argv[]){
             {
                 return -1;
             }
+            mem->contador_personas=0;
+            mem->sentido_puente=-1;
+            mem->espera=0;
+            printf("%d, %d", mem->contador_personas, mem->sentido_puente);
+            fflush(stdout);
 
             //En memoria compartida se esta guardando correctamente:
             //1.- El pid del filosofo
@@ -335,10 +423,7 @@ int main (int argc, char *argv[]){
             printf("Error al hacer fork...\n");
             return -1;
         }
-        else
-        {
-            pid_hijo[i]=getpid();
-        }
+        
     }
 
     int errFI_puedo,errFI_pausa;
@@ -347,48 +432,150 @@ int main (int argc, char *argv[]){
         
         int nVueltas=0;
         int zona=-1;
-        int pausado=0;
-        
+        int zonaPrevia;
         while(nVueltas<numVuel)
         {
-            wait_semaforo(semid,0);
-            errFI_puedo=FI_puedoAndar();
-            if(pausado==0)
-            {
-              errFI_pausa=FI_pausaAndar();  
+            //moverse con espera ocupada
+            errFI_puedo=-1;
+            while (errFI_puedo != 100) {
+                errFI_puedo = FI_puedoAndar();
+                if (errFI_puedo == 100) {
+                    errFI_pausa = FI_pausaAndar();
+                    zonaPrevia = zona;
+                    zona = FI_andar();
+                    //printf("%d",zona);
+                    //    fflush(stdout);
+                }
             }
             
+            
 
-            if(errFI_pausa ==-1)
+            if(zonaPrevia==CAMPO&&zona==PUENTE) //metiendote en el puente
             {
-                signal_semaforo(semid,0);
-                return -1;     
+                int puedo_entrar_puente=0;
+                do{
+                
+                    wait_semaforo(semid, 7);    //memoria
+
+                    memoria *mem = (memoria *)shmat(shm_inicio, NULL, 0);
+                    if (mem == (void *)-1)
+                    {
+                        perror("Error en shmat (hijo)");
+                        exit(1);
+                    }
+
+
+                    if(mem->contador_personas<2 && (mem->sentido_puente==-1 || mem->sentido_puente==0)){    //si puente esta vacio o estan en mi sentido y hay 0 o 1
+                        puedo_entrar_puente=1;
+                        mem->sentido_puente=0;
+                        mem->contador_personas+=1;
+                        printf("%d, %d", mem->contador_personas, mem->sentido_puente);
+                        fflush(stdout);
+                        printf("derecha a izquierda, puedo");
+                        fflush(stdout);
+                       
+                    }else if (mem->contador_personas<2 && (mem->sentido_puente==-1 || mem->sentido_puente==1)){
+                        puedo_entrar_puente=1;
+                        mem->sentido_puente=1;
+                        mem->contador_personas+=1;
+                        printf("%d, %d", mem->contador_personas, mem->sentido_puente);
+                        fflush(stdout);
+                        printf("izquierda a derecha, puedo");
+                        fflush(stdout);
+
+               
+                    }else{
+                        printf("no puedo pasar...");
+                        fflush(stdout);
+                        wait_semaforo(semid, 9);    //solo uno modifica memoria o lee memoria de espera
+                        printf("pongo que estoy esperando");
+                        fflush(stdout);
+                        mem->espera=1;  //estoy esperando
+                        signal_semaforo(semid, 9);
+                        shmdt(mem);
+                        signal_semaforo(semid, 7); //libero la memoria para que puedan miararla
+                        printf("me bloqueo pq no puedo pasar");
+                        fflush(stdout);
+                        wait_semaforo(semid, 8);    //no puedo entrar al puente, me bloqueo
+                        continue;
+                    }
+
+                    shmdt(mem);
+                    signal_semaforo(semid, 7); //libero la memoria para que puedan mirarla
+                    
+                }while(puedo_entrar_puente!=1);
+
+               
+                wait_semaforo(semid,1);//puede entrar al puente, dos personas solo, QUITABLE!!!!!
+                printf("puedo pasar al puente");
+                fflush(stdout);
+               
+                
             }
 
-            if(errFI_puedo ==-1)
+            if(zonaPrevia==PUENTE&&zona==CAMPO)
             {
-                return -1;
-            }    
+                int paso=0;
+                do{
+                    errFI_puedo=0;
+                    while (errFI_puedo != 100) {
+                        errFI_puedo = FI_puedoAndar();
+                        if (errFI_puedo == 100) {
+                            errFI_pausa = FI_pausaAndar();
+                            zonaPrevia = zona;
+                            zona = FI_andar();
+                            //printf("%d",zona);
+                            //fflush(stdout);
 
+                            paso+=1;
+                        }
+                    }
+                    printf("doy dos pasos");
+                    fflush(stdout);
+                }while(paso<2);
 
-            if (errFI_puedo != 100)
-            {
-                pausado=1;
-                signal_semaforo(semid, 0); 
-                continue; 
+                wait_semaforo(semid, 9);    //ver memeoria compartida
+                memoria *mem = (memoria *)shmat(shm_inicio, NULL, 0);
+                if (mem == (void *)-1)
+                {
+                    perror("Error en shmat (hijo)");
+                    exit(1);
+                }
+                
+                mem->contador_personas-=1;
+                printf("una persona menos ");
+                fflush(stdout);
+                printf("%d, %d", mem->contador_personas, mem->sentido_puente);
+                fflush(stdout);
+                if(mem->contador_personas==0){
+                    printf("cambio el sentido");
+                    fflush(stdout);
+                    mem->sentido_puente=-1;
+                    printf("%d, %d", mem->contador_personas, mem->sentido_puente);
+                    fflush(stdout);
+                }
+                
+                if(mem->espera==1){
+                    printf("hay alguien esperando le avisamos");
+                    fflush(stdout);
+                    signal_semaforo(semid, 8);  //hay alguien esperando y le avisamos pa q pase
+                    mem->espera=0;
+                    
+                }
+                
+                
+                
+
+                shmdt(mem);
+
+                signal_semaforo(semid, 9);  
+                signal_semaforo(semid,1);   //he salido del puente, conteo personas, QUITABLE!!!!!!
+                
             }
 
-            int idFil=localizarSignal(getpid(),numFil); 
-            int zonaPrevia=zona; 
-            zona=FI_andar(); 
-            pausado=0;
-            signal_semaforo(semid,0);
 
-
-            //ver cuantos hay en el puente con una variable en memoria compartida
-            //pero protegerlo con un semaforo para que no se cambie indevidamente
-            //hacer una seccion crítica de cuando lees en memoria
-            //pausa de andar no en seccion crítica
+                
+             
 
             //seccion critica para elegir sitio en comedor
             //seccion critica en comedor y antesala
@@ -398,18 +585,12 @@ int main (int argc, char *argv[]){
             //-------------------------------------//
 
             
-            if(zona==ANTESALA){
-            
-                wait_semaforo(semid,2);//entra en la antesala o espera fuera
-                //printf("Filosofo %d en la antesala\n", idFil);
-                //fflush(stdout);
-                //seccion critica para elegir si se puede entrar en el comedor
-                
-                //entrara a la zona critica de elegir si se puede entrara en el comedor
-                //salir y entrar al comedor
-                signal_semaforo(semid,2);//salir de antesala
-                
+            if(zona==ANTESALA&&zonaPrevia==CAMPO)
+            {
+                wait_semaforo(semid,5);
+
             }
+
 
 
             if(zona == ENTRADACOMEDOR)
@@ -422,215 +603,305 @@ int main (int argc, char *argv[]){
                     exit(1);
                 }
                 
-                
+                //SE TIENE QUE PARAR AQUI ANTES DE LA ELECCION DEL PLATO 
+                wait_semaforo(semid,4); 
                 
                 wait_semaforo(semid,3);
                 int plato=-1;
                 for(int i=0;i<5;i++)
                 {
-                    if(mem->platos_libres[i]==0)
-                    {
-                        mem->platos_libres[i]=getpid();
-                        if(i==0){
-                            mem->tenedores[0]=getpid();
-                            mem->tenedores[4]=getpid();
-                        }else{
-                            mem->tenedores[i]= getpid();
-                            mem->tenedores[i-1]=getpid();
-                        }
-                        plato=i;
+                   if (mem->platos_libres[i] == 0) {
+                        plato = i;
+                        mem->platos_libres[i] = getpid();  // Ocuparait_semaforo(semid,4);  el plato
                         break;
-                    }
+                   }   
+                    
                 }
 
-                if(plato==-1)
-                {
-                    printf("Error al elegir plato...\n");
-                    return -1;
-                }
-                plato=4;
-                FI_entrarAlComedor(plato);
+
+                //si plato es -1 está esperando en la antesala, no encontró plato
                 
-                signal_semaforo(semid,3);
-
-
-
-                //bucle buscvar sitio libre
-                //si lo encuentra, lo ocupa y sale del bucle
-                //signal_semaforo(semid,0);
-                //si no lo encuentra, se queda esperando
-                //cuando sale de comer poner su hueco a 0 para que otro pueda ocuparlo
-                //seccion critica para elegir sitio en comedor
-            
-
-
-                
-                
-
+                FI_entrarAlComedor(plato);               
+                signal_semaforo(semid,3);    
+               
+                //DA EL PASO DE ENTRAR AL COMEDOR Y AVISA A UNO DE LA ANTESALA QUE ENTRE
+                int paso=1;
                 while(1)
-                {
+                {       // 
+
+                    
+                    wait_semaforo(semid,0);
                     errFI_puedo=FI_puedoAndar();
-                    if(errFI_puedo ==-1)
+                    if(errFI_puedo==100)
                     {
-                        return -1;
+                        errFI_pausa=FI_pausaAndar();
+                        zona=FI_andar();
+                        zonaPrevia=zona;
+                        if(paso==1)
+                        {
+                            signal_semaforo(semid,5);
+                            paso-=1;
+                        }
                     }
-                    
-                    errFI_pausa=FI_pausaAndar();
-                    if(errFI_pausa ==-1)
-                    {
-                        return -1;
-                    }
-
-                    int zona2=FI_andar();
-                    if(zona2==-1)
-                    {
-                        return -1;
-                    }
-                    else if(zona2 == SILLACOMEDOR)
+                    signal_semaforo(semid,0);
+                   
+                    if(zona == SILLACOMEDOR)
                     {
                         
-                        int comiendo;
-                        for(int i=0;i<5;i++)
-                        {
-                            if(mem->platos_libres[i]==getpid())
-                            {
-                                
-                            //ENTRA AQUÏ PERO NO DONDE LOS MEM TENEDORES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                                if(i==0 && mem->tenedores[0]==getpid() && mem->tenedores[4]==getpid())
-                                {
-                                    FI_cogerTenedor(TENEDORIZQUIERDO);
-                                    FI_cogerTenedor(TENEDORDERECHO);
-                                    
-                                    do
-                                    {
-                                        comiendo=FI_comer();
-                                    } while (comiendo==SILLACOMEDOR);
+                        if(plato!=-1){
+                            int tenedor_izq=plato;
+                            int tenedor_der=(plato+4) % 5;
+                        
+
+                            while(1){
+                                wait_semaforo(semid, 3);
+                                if(mem->tenedores[tenedor_izq]==0 && mem->tenedores[tenedor_der]==0){
+                                    mem->tenedores[tenedor_izq]=getpid();
+                                    mem->tenedores[tenedor_der]=getpid();
+                                    signal_semaforo(semid, 3);
                                     break;
-                                }else{
-                                    while(1)
-                                    {
-                                        if(mem->tenedores[0]==getpid() && mem->tenedores[4]==getpid())
-                                        {
-                                            FI_cogerTenedor(TENEDORIZQUIERDO);
-                                            FI_cogerTenedor(TENEDORDERECHO);
-                                            
-                                            do
-                                            {
-                                                comiendo=FI_comer();
-                                            } while (comiendo==SILLACOMEDOR);
-                                            break;
-                                        }
-                                    //ESPERA OCUPADA MWJORABLE!!!!
-                                    }
-                                   
                                 }
+                                signal_semaforo(semid, 3);
 
-                                if(i!=0 && mem->tenedores[i]==getpid() && mem->tenedores[i-1]==getpid())
-                                {
-                                    FI_cogerTenedor(TENEDORIZQUIERDO);
-                                    FI_cogerTenedor(TENEDORDERECHO);
-                                   
-                                    do
-                                            {
-                                                comiendo=FI_comer();
-                                            } while (comiendo==SILLACOMEDOR);
-                                    break;
-                                }else{
-                                    while(1)
-                                    {
-                                        if(mem->tenedores[i]==getpid() && mem->tenedores[i-1]==getpid())
-                                        {
-                                            FI_cogerTenedor(TENEDORIZQUIERDO);
-                                            FI_cogerTenedor(TENEDORDERECHO);
-                                          
-                                            do
-                                            {
-                                                comiendo=FI_comer();
-                                            } while (comiendo==SILLACOMEDOR);
-                                            break;
-                                        }
-                                    //ESPERA OCUPADA MWJORABLE!!!!
-                                    }
+                            }
 
-                                    //ESPERA OCUPADA MWJORABLE!!!!
-                                }
 
-                                    
+                            FI_cogerTenedor(TENEDORIZQUIERDO);
+                            FI_cogerTenedor(TENEDORDERECHO);
+                            
+                            int comiendo;
+
+                            do{
+                                comiendo=FI_comer();
+                            }while (comiendo==SILLACOMEDOR);
+                            
+
+                            wait_semaforo(semid,3);
+                            FI_dejarTenedor(TENEDORDERECHO);
+                            FI_dejarTenedor(TENEDORIZQUIERDO);
+                            mem->tenedores[tenedor_der]=0;
+                            mem->tenedores[tenedor_izq]=0;
+                            signal_semaforo(semid,3);
+
+                            mem->platos_libres[plato]=0;
+
+
+                        }    
+                        
+                        
             
-                                break;
-                            }
-                        
-                        }
+                       
+                        //eliminar puntero memoria
+                        shmdt(mem);
+                        signal_semaforo(semid,4);
 
-                        
-                        
-                        //soltar tenedores
-                        
 
-                        for(int i=0;i<5;i++)
-                        {
-                            if(mem->platos_libres[i]==getpid())
+                        /*****************************************/
+                        zonaPrevia=zona;
+                        do{
+                            wait_semaforo(semid,0); 
+                            errFI_puedo=FI_puedoAndar();
+                            if(errFI_puedo==100)
                             {
-                                FI_dejarTenedor(TENEDORIZQUIERDO);
-                                FI_dejarTenedor(TENEDORDERECHO);
-                                mem->platos_libres[i]=0;
-                                if(i==0){
-                                    mem->tenedores[0]=0;
-                                    mem->tenedores[4]=0;
-                                }else{
-                                    mem->tenedores[i]=0;
-                                    mem->tenedores[i-1]=0;
-                                }
-                                break;
+                                errFI_pausa=FI_pausaAndar();
+                                zona=FI_andar();
+                                zonaPrevia=zona;
                             }
+                            signal_semaforo(semid,0);
+                        }while(zona!=CAMPO);
+                        /*****************************************/
+                        int total=40;
+                        do{
+                            errFI_puedo=FI_puedoAndar();
+                            if(errFI_puedo==100)
+                            {
+                                errFI_pausa=FI_pausaAndar();
+                                zona=FI_andar();
+                                zonaPrevia=zona;
+                                total-=1;
+                            }
+                        }while(total>0);
+
+                        /*****************************************/
+
+                        do{
+                            wait_semaforo(semid,2);
+                            errFI_puedo=FI_puedoAndar();
+                            if(errFI_puedo==100)
+                            {
+                                errFI_pausa=FI_pausaAndar();
+                                zona=FI_andar();
+                                zonaPrevia=zona;
+                            }
+                            signal_semaforo(semid,2);
+                        }while(zona!=PUENTE);
+
+                        if(zona==PUENTE){
+                            int puedo_entrar_puente=0;
+                            do{
+                            
+                                wait_semaforo(semid, 7);    //memoria
+
+                                memoria *mem = (memoria *)shmat(shm_inicio, NULL, 0);
+                                if (mem == (void *)-1)
+                                {
+                                    perror("Error en shmat (hijo)");
+                                    exit(1);
+                                }
+
+
+                                if (mem->contador_personas<2 && (mem->sentido_puente==-1 || mem->sentido_puente==1)){//si puente esta vacio o estan en mi sentido y hay 0 o 1
+                                    puedo_entrar_puente=1;
+                                    mem->sentido_puente=1;
+                                    mem->contador_personas+=1;
+                                    printf("izquierda a derecha, puedo");
+                                    fflush(stdout);
+
+                        
+                                }else{
+                                    printf("no puedo pasar...");
+                                    fflush(stdout);
+                                    wait_semaforo(semid, 9);    //solo uno modifica memoria o lee memoria de espera
+                                    printf("pongo que estoy esperando");
+                                    fflush(stdout);
+                                    mem->espera=1;  //estoy esperando
+                                    signal_semaforo(semid, 9);
+                                    
+                                    signal_semaforo(semid, 7); //libero la memoria para que puedan miararla
+                                    printf("me bloqueo pq no puedo pasar");
+                                    fflush(stdout);
+                                    printf("%d, %d", mem->contador_personas, mem->sentido_puente);
+                                    fflush(stdout);
+                                    
+                                    shmdt(mem);
+                                    wait_semaforo(semid, 8);    //no puedo entrar al puente, me bloqueo
+                                    continue;
+                                }
+
+                                shmdt(mem);
+                                signal_semaforo(semid, 7); //libero la memoria para que puedan mirarla
+                                
+                            }while(puedo_entrar_puente!=1);
+
+                        
+                            wait_semaforo(semid,1);//puede entrar al puente, dos personas solo, QUITABLE!!!!!
+                            printf("puedo pasar al puente");
+                            fflush(stdout);
+                            break;
+                
                         }
-                        //poner a 0 mi plato
-                        break;
                     }
-                    
+                    /*****************************************/          
+
+
+                        
                 }
+                    
+            
+
             }
             else if(zona==TEMPLO)
             {
-                FI_entrarAlTemplo(0);
-                while(1)
+               memoria *mem = (memoria *)shmat(shm_inicio, NULL, 0);
+                if (mem == (void *)-1)
                 {
-                    errFI_puedo=FI_puedoAndar();
-                    if(errFI_puedo ==-1)
-                    {
-                        return -1;
-                    }
+                    perror("Error en shmat (hijo)");
+                    exit(1);
+                }
+
+                int elegido=-1;
+                do{
+                    wait_semaforo(semid,10);
                     
-                    errFI_pausa=FI_pausaAndar();
-                    if(errFI_pausa ==-1)
+                    for (int i = 0; i < 3; i++)
                     {
-                        return -1;
+                        if(mem->sitios_templo[i]==0){
+                            mem->sitios_templo[i]=getpid();
+                            elegido=i;
+                        
+                            break;
+                        }
                     }
 
-                    int zona2=FI_andar();
-                    if(zona2==-1)
+                    if(elegido==-1){
+                        signal_semaforo(semid,10);
+                    }else{
+                        FI_entrarAlTemplo(elegido);
+                        signal_semaforo(semid,10);
+                    }
+                    
+                   
+                }while(elegido==-1);
+
+                while(1)
+                {
+                    
+                    wait_semaforo(semid,11);
+                    errFI_puedo=FI_puedoAndar();
+                    if(errFI_puedo==100)
+                    {
+                        errFI_pausa=FI_pausaAndar();
+                        zona=FI_andar();
+                        zonaPrevia=zona;
+                    }
+                    signal_semaforo(semid,11);
+
+                    if(zona==-1)
                     {
                         return -1;
                     }
-                    else if(zona2 == SITIOTEMPLO){
+                    else if(zona == SITIOTEMPLO){
                         int meditar;
                         do
                         {
                             meditar=FI_meditar();
                         } while (meditar==SITIOTEMPLO);
+
+
+                        
+                        wait_semaforo(semid,6);
+                
+                        for (int i = 0; i < 3; i++)
+                        {
+                            if(mem->sitios_templo[i]==getpid()){
+                                mem->sitios_templo[i]=0;
+                                break;
+                            }
+                        }
+                
+                        signal_semaforo(semid,6);
+
+
+
+                        int pasos=10;
+                        do{
+                            wait_semaforo(semid,11);
+                            errFI_puedo=FI_puedoAndar();
+                            if(errFI_puedo==100)
+                            {
+                                errFI_pausa=FI_pausaAndar();
+                                zona=FI_andar();
+                                zonaPrevia=zona;
+                                pasos-=1;
+                            }
+                            signal_semaforo(semid,11);
+                        }while(pasos!=0);
+                        
                         nVueltas+=1;
                         break;
                         
                     }
+
+                    
+                
+                    
+                
                 }
             }
             else if(zona ==-1)
             {
                 return -1;
             }
-
-            //FALTA EL PUENTE
-
 
         }
 

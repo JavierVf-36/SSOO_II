@@ -108,6 +108,7 @@ int localizarSignal(pid_t pid, int numFil)
             return memm->infoFil[i].idFil;
         }
     }
+    shmdt(memm);
     return -1;
 }
 
@@ -212,9 +213,9 @@ int main (int argc, char *argv[]){
 
 
     struct DatosSimulaciOn ddssp;
-    ddssp.maxFilOsofosEnPuente=10;
+    ddssp.maxFilOsofosEnPuente=2;
     ddssp.maxUnaDirecciOnPuente=0;
-    ddssp.sitiosTemplo=10;
+    ddssp.sitiosTemplo=3;
     ddssp.nTenedores=5;
 
 
