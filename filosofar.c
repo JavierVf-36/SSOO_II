@@ -469,33 +469,33 @@ int main (int argc, char *argv[]){
                         puedo_entrar_puente=1;
                         mem->sentido_puente=0;
                         mem->contador_personas+=1;
-                        printf("%d, %d", mem->contador_personas, mem->sentido_puente);
-                        fflush(stdout);
-                        printf("derecha a izquierda, puedo");
+                        //printf("%d, %d", mem->contador_personas, mem->sentido_puente);
+                        //fflush(stdout);
+                        //printf("derecha a izquierda, puedo");
                         fflush(stdout);
                        
                     }else if (mem->contador_personas<2 && (mem->sentido_puente==-1 || mem->sentido_puente==1)){
                         puedo_entrar_puente=1;
                         mem->sentido_puente=1;
                         mem->contador_personas+=1;
-                        printf("%d, %d", mem->contador_personas, mem->sentido_puente);
-                        fflush(stdout);
-                        printf("izquierda a derecha, puedo");
-                        fflush(stdout);
+                        //printf("%d, %d", mem->contador_personas, mem->sentido_puente);
+                        //fflush(stdout);
+                        //printf("izquierda a derecha, puedo");
+                        //fflush(stdout);
 
                
                     }else{
-                        printf("no puedo pasar...");
-                        fflush(stdout);
+                        //printf("no puedo pasar...");
+                        //fflush(stdout);
                         wait_semaforo(semid, 9);    //solo uno modifica memoria o lee memoria de espera
-                        printf("pongo que estoy esperando");
-                        fflush(stdout);
+                        //printf("pongo que estoy esperando");
+                        //fflush(stdout);
                         mem->espera=1;  //estoy esperando
                         signal_semaforo(semid, 9);
                         shmdt(mem);
                         signal_semaforo(semid, 7); //libero la memoria para que puedan miararla
-                        printf("me bloqueo pq no puedo pasar");
-                        fflush(stdout);
+                        //printf("me bloqueo pq no puedo pasar");
+                        //fflush(stdout);
                         wait_semaforo(semid, 8);    //no puedo entrar al puente, me bloqueo
                         continue;
                     }
@@ -507,8 +507,8 @@ int main (int argc, char *argv[]){
 
                
                 wait_semaforo(semid,1);//puede entrar al puente, dos personas solo, QUITABLE!!!!!
-                printf("puedo pasar al puente");
-                fflush(stdout);
+                //printf("puedo pasar al puente");
+                //fflush(stdout);
                
                 
             }
@@ -530,8 +530,8 @@ int main (int argc, char *argv[]){
                             paso+=1;
                         }
                     }
-                    printf("doy dos pasos");
-                    fflush(stdout);
+                    //printf("doy dos pasos");
+                    //fflush(stdout);
                 }while(paso<2);
 
                 wait_semaforo(semid, 9);    //ver memeoria compartida
@@ -543,21 +543,21 @@ int main (int argc, char *argv[]){
                 }
                 
                 mem->contador_personas-=1;
-                printf("una persona menos ");
-                fflush(stdout);
+                //printf("una persona menos ");
+                //fflush(stdout);
                 printf("%d, %d", mem->contador_personas, mem->sentido_puente);
                 fflush(stdout);
                 if(mem->contador_personas==0){
-                    printf("cambio el sentido");
-                    fflush(stdout);
+                    //printf("cambio el sentido");
+                    //fflush(stdout);
                     mem->sentido_puente=-1;
-                    printf("%d, %d", mem->contador_personas, mem->sentido_puente);
-                    fflush(stdout);
+                    //printf("%d, %d", mem->contador_personas, mem->sentido_puente);
+                    //fflush(stdout);
                 }
                 
                 if(mem->espera==1){
-                    printf("hay alguien esperando le avisamos");
-                    fflush(stdout);
+                    //printf("hay alguien esperando le avisamos");
+                    //fflush(stdout);
                     signal_semaforo(semid, 8);  //hay alguien esperando y le avisamos pa q pase
                     mem->espera=0;
                     
@@ -754,24 +754,24 @@ int main (int argc, char *argv[]){
                                     puedo_entrar_puente=1;
                                     mem->sentido_puente=1;
                                     mem->contador_personas+=1;
-                                    printf("izquierda a derecha, puedo");
-                                    fflush(stdout);
+                                    //printf("izquierda a derecha, puedo");
+                                    //fflush(stdout);
 
                         
                                 }else{
-                                    printf("no puedo pasar...");
-                                    fflush(stdout);
+                                    //printf("no puedo pasar...");
+                                    //fflush(stdout);
                                     wait_semaforo(semid, 9);    //solo uno modifica memoria o lee memoria de espera
-                                    printf("pongo que estoy esperando");
-                                    fflush(stdout);
+                                    //printf("pongo que estoy esperando");
+                                    //fflush(stdout);
                                     mem->espera=1;  //estoy esperando
                                     signal_semaforo(semid, 9);
                                     
                                     signal_semaforo(semid, 7); //libero la memoria para que puedan miararla
-                                    printf("me bloqueo pq no puedo pasar");
-                                    fflush(stdout);
-                                    printf("%d, %d", mem->contador_personas, mem->sentido_puente);
-                                    fflush(stdout);
+                                    //printf("me bloqueo pq no puedo pasar");
+                                    //fflush(stdout);
+                                    //printf("%d, %d", mem->contador_personas, mem->sentido_puente);
+                                    //fflush(stdout);
                                     
                                     shmdt(mem);
                                     wait_semaforo(semid, 8);    //no puedo entrar al puente, me bloqueo
@@ -785,8 +785,8 @@ int main (int argc, char *argv[]){
 
                         
                             wait_semaforo(semid,1);//puede entrar al puente, dos personas solo, QUITABLE!!!!!
-                            printf("puedo pasar al puente");
-                            fflush(stdout);
+                            //printf("puedo pasar al puente");
+                            //fflush(stdout);
                             break;
                 
                         }
@@ -925,7 +925,6 @@ int main (int argc, char *argv[]){
 
     //ELIMINO IPCs
     eliminar_sem(sem_inicio);
-    
     liberar_mem(shm_inicio);
     eliminar_buzon(buzon);
 
