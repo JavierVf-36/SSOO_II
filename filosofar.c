@@ -437,6 +437,7 @@ int main (int argc, char *argv[]){
         {
             //moverse con espera ocupada
             errFI_puedo=-1;
+            
             while (errFI_puedo != 100) {
                 errFI_puedo = FI_puedoAndar();
                 if (errFI_puedo == 100) {
@@ -447,6 +448,7 @@ int main (int argc, char *argv[]){
                     //    fflush(stdout);
                 }
             }
+            
             
             
 
@@ -469,20 +471,11 @@ int main (int argc, char *argv[]){
                         puedo_entrar_puente=1;
                         mem->sentido_puente=0;
                         mem->contador_personas+=1;
-                        //printf("%d, %d", mem->contador_personas, mem->sentido_puente);
-                        //fflush(stdout);
+                        
                         //printf("derecha a izquierda, puedo");
                         fflush(stdout);
                        
-                    }else if (mem->contador_personas<2 && (mem->sentido_puente==-1 || mem->sentido_puente==1)){
-                        puedo_entrar_puente=1;
-                        mem->sentido_puente=1;
-                        mem->contador_personas+=1;
-                        //printf("%d, %d", mem->contador_personas, mem->sentido_puente);
-                        //fflush(stdout);
-                        //printf("izquierda a derecha, puedo");
-                        //fflush(stdout);
-
+                    
                
                     }else{
                         //printf("no puedo pasar...");
@@ -491,6 +484,8 @@ int main (int argc, char *argv[]){
                         //printf("pongo que estoy esperando");
                         //fflush(stdout);
                         mem->espera=1;  //estoy esperando
+                        printf("espero: %d, %d\n", mem->contador_personas, mem->sentido_puente);
+                        fflush(stdout);
                         signal_semaforo(semid, 9);
                         shmdt(mem);
                         signal_semaforo(semid, 7); //libero la memoria para que puedan miararla
@@ -515,6 +510,8 @@ int main (int argc, char *argv[]){
 
             if(zonaPrevia==PUENTE&&zona==CAMPO)
             {
+                printf("entro en cambiar");
+                fflush(stdout);
                 int paso=0;
                 do{
                     errFI_puedo=0;
@@ -545,14 +542,16 @@ int main (int argc, char *argv[]){
                 mem->contador_personas-=1;
                 //printf("una persona menos ");
                 //fflush(stdout);
-                printf("%d, %d", mem->contador_personas, mem->sentido_puente);
-                fflush(stdout);
+                //printf("%d, %d", mem->contador_personas, mem->sentido_puente);
+                //fflush(stdout);
                 if(mem->contador_personas==0){
+                    printf("sentido: %d, %d", mem->contador_personas, mem->sentido_puente);
+                    fflush(stdout);
                     //printf("cambio el sentido");
                     //fflush(stdout);
                     mem->sentido_puente=-1;
-                    //printf("%d, %d", mem->contador_personas, mem->sentido_puente);
-                    //fflush(stdout);
+                    printf("cambio de sentifo: %d, %d", mem->contador_personas, mem->sentido_puente);
+                    fflush(stdout);
                 }
                 
                 if(mem->espera==1){
@@ -714,7 +713,7 @@ int main (int argc, char *argv[]){
                         do{
                             errFI_puedo=FI_puedoAndar();
                             if(errFI_puedo==100)
-                            {
+                            {signal_semaforo(semid,1);  
                                 errFI_pausa=FI_pausaAndar();
                                 zona=FI_andar();
                                 zonaPrevia=zona;
@@ -765,6 +764,8 @@ int main (int argc, char *argv[]){
                                     //printf("pongo que estoy esperando");
                                     //fflush(stdout);
                                     mem->espera=1;  //estoy esperando
+                                    printf("espero: %d, %d\n", mem->contador_personas, mem->sentido_puente);
+                                    fflush(stdout);
                                     signal_semaforo(semid, 9);
                                     
                                     signal_semaforo(semid, 7); //libero la memoria para que puedan miararla
@@ -787,6 +788,8 @@ int main (int argc, char *argv[]){
                             wait_semaforo(semid,1);//puede entrar al puente, dos personas solo, QUITABLE!!!!!
                             //printf("puedo pasar al puente");
                             //fflush(stdout);
+
+
                             break;
                 
                         }
@@ -871,23 +874,28 @@ int main (int argc, char *argv[]){
                 
                         signal_semaforo(semid,6);
 
-
-
-                        int pasos=10;
-                        do{
-                            wait_semaforo(semid,11);
-                            errFI_puedo=FI_puedoAndar();
-                            if(errFI_puedo==100)
-                            {
-                                errFI_pausa=FI_pausaAndar();
-                                zona=FI_andar();
-                                zonaPrevia=zona;
-                                pasos-=1;
-                            }
-                            signal_semaforo(semid,11);
-                        }while(pasos!=0);
-                        
                         nVueltas+=1;
+                        int pasos=0;
+
+                        //mirar luego
+                        if(nVueltas!=numVuel){
+
+                        
+                            do{
+                                wait_semaforo(semid,11);
+                                errFI_puedo=FI_puedoAndar();
+                                if(errFI_puedo==100)
+                                {
+                                    errFI_pausa=FI_pausaAndar();
+                                    zona=FI_andar();
+                                    zonaPrevia=zona;
+                                    pasos++;
+                                }
+                                signal_semaforo(semid,11);
+                            }while(pasos<=13);
+                        
+                        }
+                       
                         break;
                         
                     }
@@ -912,7 +920,7 @@ int main (int argc, char *argv[]){
             return -1;
         }
         
-        return 0;
+        exit(0);
     }
     else
     {
