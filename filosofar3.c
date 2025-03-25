@@ -454,18 +454,112 @@ int main (int argc, char *argv[]){
 
             if(zonaPrevia==CAMPO&&zona==PUENTE) //metiendote en el puente
             {
-                /*
-                BUZONES:
-                Dos colas en teoria. Una para avisar de que quieres entrar pero no es su sentido y esta esperando, y otra para decirle que puede entrar
-                */
+                memoria *mem = (memoria *)shmat(shm_inicio, NULL, 0);
+                if (mem == (void *)-1)
+                {
+                    perror("Error en shmat (hijo)");
+                    exit(1);
+                }
+
+                int puedo_entrar_puente=0;
+                do{
+                
+                    wait_semaforo(semid, 7);    //memoria
+
+                    memoria *mem = (memoria *)shmat(shm_inicio, NULL, 0);
+                    if (mem == (void *)-1)
+                    {
+                        perror("Error en shmat (hijo)");
+                        exit(1);
+                    }
+
+
+                    if(mem->contador_personas<2 && (mem->sentido_puente==-1 || mem->sentido_puente==0)){    //si puente esta vacio o estan en mi sentido y hay 0 o 1
+                        puedo_entrar_puente=1;
+                        mem->sentido_puente=0;
+                        mem->contador_personas+=1;               
+                    }else{
+                        //40: AVISAR A OTRO QUE ESTOY ESPERANDO
+                        //41: ESPERAR HASTA QUE TE AVISEN DE LA DERECHA
+                        //42: ESPERAR HASTA QUE TE AVISEN DE LA IZQUIERDA
+                        mensaje msg;
+                        mensaje recibido;
+                        msg.info=0;
+                        msg.tipo=40;
+                        msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
+                        msgrcv(buzon,&recibido,sizeof(mensaje)-sizeof(long),41,0);
+                        shmdt(mem);
+                        signal_semaforo(semid, 7); //libero la memoria para que puedan miararla
+                        continue;
+                    }
+
+                    shmdt(mem);
+                    signal_semaforo(semid, 7); //libero la memoria para que puedan mirarla
+                    
+                }while(puedo_entrar_puente!=1);
             }
 
             if(zonaPrevia==PUENTE&&zona==CAMPO)
             {
+
+
                 /* AL SALIR, DE DERECHA A IZQUIERDA
                 -Actualizar los valores antes de avisar
                 -Cuando quede uno, que haga un wait
                 */
+
+
+                int paso=0;
+                do{
+                    errFI_puedo=0;
+                    while (errFI_puedo != 100) {
+                        errFI_puedo = FI_puedoAndar();
+                        if (errFI_puedo == 100) {
+                            errFI_pausa = FI_pausaAndar();
+                            zonaPrevia = zona;
+                            zona = FI_andar();
+                            //printf("%d",zona);
+                            //fflush(stdout);
+
+                            paso+=1;
+                        }
+                    }
+                    //printf("doy dos pasos");
+                    //fflush(stdout);
+                }while(paso<2);
+
+                mensaje recibido;
+                int mrecibido=msgrcv(buzon,&recibido,sizeof(mensaje)-sizeof(long),40,IPC_NOWAIT);
+                if(recibido.info==0)
+                {
+                    mensaje msg;
+                    msg.info=0;
+                    msg.tipo=41;
+                    msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
+                }else if(recibido.info==1)
+                {
+                    mensaje msg;
+                    msg.info=0;
+                    msg.tipo=42;
+                    msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
+                }
+
+                wait_semaforo(semid, 9); 
+
+                memoria *mem = (memoria *)shmat(shm_inicio, NULL, 0);
+                if (mem == (void *)-1)
+                {
+                    perror("Error en shmat (hijo)");
+                    exit(1);
+                }
+
+                mem->contador_personas-=1;
+
+                if(mem->contador_personas==0){
+                    mem->sentido_puente=-1;
+                }
+                shmdt(mem);
+                signal_semaforo(semid, 9);
             }
 
 
@@ -632,6 +726,9 @@ int main (int argc, char *argv[]){
                         }while(zona!=PUENTE);
 
                         if(zona==PUENTE){
+                            //tipo 42
+                            //MIRAR EL NUMERO DE PERSONAS, EL SENTIDO, Y ENVIAR UN MENSAJE CON TU SENTIDO SI TIENES QUE ESPERAR
+                            //SI NO HAY NADIE, PUEDES PASAR
                             break;
                 
                         }
