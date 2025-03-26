@@ -104,8 +104,6 @@ int localizarSignal(pid_t pid, int numFil)
     {
         if(memm->infoFil[i].pidFil==pid)
         {
-            //printf("¡Me encontre!, mi idFil es: %d\n", memoria[i].idFil);
-            //fflush(stdout);
             return memm->infoFil[i].idFil;
         }
     }
@@ -303,7 +301,7 @@ int main (int argc, char *argv[]){
         return 1;
     }
 
-    ctl=semctl(semid,9,SETVAL,1);  //memoria compartida de ver si hay alguien esperando puente
+    ctl=semctl(semid,9,SETVAL,1);  //para avisar en el templo que es seguro entrar
     if(ctl==-1)
     {
         perror("Error al asignar el contador del semaforo.\n");
@@ -406,9 +404,6 @@ int main (int argc, char *argv[]){
             mem->contador_personas=0;
             mem->sentido_puente=-1;
             mem->espera=0;
-            printf("%d, %d", mem->contador_personas, mem->sentido_puente);
-            fflush(stdout);
-
             //En memoria compartida se esta guardando correctamente:
             //1.- El pid del filosofo
             //2.- El identificador del filosofo
@@ -447,8 +442,6 @@ int main (int argc, char *argv[]){
                     errFI_pausa = FI_pausaAndar();
                     zonaPrevia = zona;
                     zona = FI_andar();
-                    //printf("%d",zona);
-                    //    fflush(stdout);
                 }
             }
             
@@ -474,7 +467,9 @@ int main (int argc, char *argv[]){
                     if(mem->contador_personas<2 && (mem->sentido_puente==-1 || mem->sentido_puente==0)){    //si puente esta vacio o estan en mi sentido y hay 0 o 1
                         puedo_entrar_puente=1;
                         mem->sentido_puente=0;
-                        mem->contador_personas+=1;               
+                        mem->contador_personas+=1;   
+                        shmdt(mem);
+                        signal_semaforo(semid, 7); //libero la memoria para que puedan mirarla            
                     }else{
                         //40: AVISAR A OTRO QUE ESTOY ESPERANDO
                         //41: ESPERAR HASTA QUE TE AVISEN DE LA DERECHA
@@ -489,11 +484,7 @@ int main (int argc, char *argv[]){
                         msgrcv(buzon,&recibido,sizeof(mensaje)-sizeof(long),41,0);
                         
                         continue;
-                    }
-
-                    shmdt(mem);
-                    signal_semaforo(semid, 7); //libero la memoria para que puedan mirarla
-                    
+                    }                    
                 }while(puedo_entrar_puente!=1);
             }
 
@@ -519,8 +510,6 @@ int main (int argc, char *argv[]){
                             paso+=1;
                         }
                     }
-                    //printf("doy dos pasos");
-                    //fflush(stdout);
                 }while(paso<2);
 
 
@@ -534,31 +523,28 @@ int main (int argc, char *argv[]){
                 }
 
                 mem->contador_personas-=1;
-
-                if(mem->contador_personas==0){
+                if(mem->contador_personas==0)
+                {
                     mem->sentido_puente=-1;
-                    printf("c");
-                    fflush(stdout);
-
+                    mensaje recibido;
+                    int mrecibido=msgrcv(buzon,&recibido,sizeof(mensaje)-sizeof(long),40,IPC_NOWAIT);
+                    if (mrecibido != -1) {
+                        if(recibido.info==0) {
+                            mensaje msg;
+                            msg.info=0;
+                            msg.tipo=41;
+                            msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
+                        } else if(recibido.info==1) {
+                            mensaje msg;
+                            msg.info=0;
+                            msg.tipo=42;
+                            msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
+                        }
+                    }
                 }
                 shmdt(mem);
-                signal_semaforo(semid, 7);
+                signal_semaforo(semid, 7); //arriba de mensajes
 
-                mensaje recibido;
-                int mrecibido=msgrcv(buzon,&recibido,sizeof(mensaje)-sizeof(long),40,IPC_NOWAIT);
-                if(recibido.info==0)
-                {
-                    mensaje msg;
-                    msg.info=0;
-                    msg.tipo=41;
-                    msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
-                }else if(recibido.info==1)
-                {
-                    mensaje msg;
-                    msg.info=0;
-                    msg.tipo=42;
-                    msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
-                }
             }
  
             if(zona==ANTESALA&&zonaPrevia==CAMPO)
@@ -716,8 +702,6 @@ int main (int argc, char *argv[]){
                     
                     if(zona==PUENTE) //metiendote en el puente
                     {
-                        printf("%d",idFil);
-                        fflush(stdout);
                         int puedo_entrar_puente=0;
                         do{
                         
@@ -734,7 +718,9 @@ int main (int argc, char *argv[]){
                             if(mem->contador_personas<2 && (mem->sentido_puente==-1 || mem->sentido_puente==1)){    //si puente esta vacio o estan en mi sentido y hay 0 o 1
                                 puedo_entrar_puente=1;
                                 mem->sentido_puente=1;
-                                mem->contador_personas+=1;               
+                                mem->contador_personas+=1;
+                                shmdt(mem);
+                                signal_semaforo(semid, 7); //libero la memoria para que puedan mirarla               
                             }else{
                                 //40: AVISAR A OTRO QUE ESTOY ESPERANDO
                                 //41: ESPERAR HASTA QUE TE AVISEN DE LA DERECHA
@@ -747,14 +733,11 @@ int main (int argc, char *argv[]){
                                 shmdt(mem);
                                 signal_semaforo(semid, 7); //libero la memoria para que puedan miararla
                                 msgrcv(buzon,&recibido,sizeof(mensaje)-sizeof(long),42,0);
-                                
                                 continue;
                             }
-        
-                            shmdt(mem);
-                            signal_semaforo(semid, 7); //libero la memoria para que puedan mirarla
                             
                         }while(puedo_entrar_puente!=1);
+
                         do{
                             errFI_puedo=FI_puedoAndar();
                             if(errFI_puedo==100)
@@ -788,8 +771,6 @@ int main (int argc, char *argv[]){
                                     paso+=1;
                                 }
                             }
-                            //printf("doy dos pasos");
-                            //fflush(stdout);
                         }while(paso<2);
         
                         wait_semaforo(semid, 7); 
@@ -802,31 +783,26 @@ int main (int argc, char *argv[]){
                         }
         
                         mem->contador_personas-=1;
-        
                         if(mem->contador_personas==0){
                             mem->sentido_puente=-1;
-                            printf("c");
-                            fflush(stdout);
+                            mensaje recibido;
+                            int mrecibido=msgrcv(buzon,&recibido,sizeof(mensaje)-sizeof(long),40,IPC_NOWAIT);
+                            if (mrecibido != -1) {
+                                if(recibido.info==0) {
+                                    mensaje msg;
+                                    msg.info=0;
+                                    msg.tipo=41;
+                                    msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
+                                } else if(recibido.info==1) {
+                                    mensaje msg;
+                                    msg.info=0;
+                                    msg.tipo=42;
+                                    msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
+                                }
+                            }
                         }
                         shmdt(mem);
-                        signal_semaforo(semid, 7);
-
-                        mensaje recibido;
-                        int mrecibido=msgrcv(buzon,&recibido,sizeof(mensaje)-sizeof(long),40,IPC_NOWAIT);
-                        if(recibido.info==0)
-                        {
-                            mensaje msg;
-                            msg.info=0;
-                            msg.tipo=41;
-                            msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
-                        }else if(recibido.info==1)
-                        {
-                            mensaje msg;
-                            msg.info=0;
-                            msg.tipo=42;
-                            msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
-                        }
-    
+                        signal_semaforo(semid, 7);    
                         break;
                     }
                         
@@ -837,7 +813,7 @@ int main (int argc, char *argv[]){
             }
             else if(zona==TEMPLO)
             {
-               memoria *mem = (memoria *)shmat(shm_inicio, NULL, 0);
+                memoria *mem = (memoria *)shmat(shm_inicio, NULL, 0);
                 if (mem == (void *)-1)
                 {
                     perror("Error en shmat (hijo)");
@@ -853,7 +829,6 @@ int main (int argc, char *argv[]){
                         if(mem->sitios_templo[i]==0){
                             mem->sitios_templo[i]=getpid();
                             elegido=i;
-                        
                             break;
                         }
                     }
@@ -863,14 +838,13 @@ int main (int argc, char *argv[]){
                     }else{
                         FI_entrarAlTemplo(elegido);
                         signal_semaforo(semid,10);
-                    }
-                    
-                   
+                        //avisar en la cola del elegido (la que sea)
+                        //esperar en la cola 53 para que te despierten
+                    }    
                 }while(elegido==-1);
 
                 while(1)
                 {
-                    
                     wait_semaforo(semid,11);
                     errFI_puedo=FI_puedoAndar();
                     if(errFI_puedo==100)
@@ -911,10 +885,8 @@ int main (int argc, char *argv[]){
 
                         //mirar luego
                         if(nVueltas!=numVuel){
-
-                        
-                            do{
-                                wait_semaforo(semid,11);
+                            wait_semaforo(semid,11);
+                              do{    
                                 errFI_puedo=FI_puedoAndar();
                                 if(errFI_puedo==100)
                                 {
@@ -923,11 +895,13 @@ int main (int argc, char *argv[]){
                                     zonaPrevia=zona;
                                     pasos++;
                                 }
-                                signal_semaforo(semid,11);
-                            }while(pasos<=13);
-                        
+                            
+                            }while(pasos<=5);
+                            signal_semaforo(semid,11);
                         }
-                       
+                        //mirar tu cola por si hubiera algun mensaje
+                        //si lo hay, envias mensaje a las cola 53 para despertarle
+
                         break;
                         
                     }
