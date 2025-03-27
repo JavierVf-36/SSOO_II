@@ -21,7 +21,6 @@
 #define SITIOTEMPLO      7
 #define CEMENTERIO       8
 
-
 static char const *nombreZonas[]={"CAMPO","PUENTE","ANTESALA","ENTRADACOMEDOR",
                            "SILLACOMEDOR","SALIDACOMEDOR","TEMPLO","SITIOTEMPLO",
                            "CEMENTERIO"};
@@ -58,3 +57,5 @@ int FI_entrarAlTemplo(int puesto);
 int FI_meditar(void);
 int FI_finFilOsofo(void);
 int FI_fin(void);
+
+void pon_error(char *mensaje);

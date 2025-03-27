@@ -66,7 +66,9 @@ void signal_semaforo(int semid, int num_sem){
 
     if(semop(semid, &operacion,1)==-1)
     {
-        perror("Error en signal_semaforo");
+        char linea[100];
+        sprintf(linea,"Signal(%d):%d",num_sem,semctl(semid,num_sem,GETVAL));
+        perror(linea);
         exit(EXIT_FAILURE);
     }
 }
@@ -708,7 +710,7 @@ int main (int argc, char *argv[]){
                         do{
                             errFI_puedo=FI_puedoAndar();
                             if(errFI_puedo==100)
-                            {signal_semaforo(semid,1);  
+                            { 
                                 errFI_pausa=FI_pausaAndar();
                                 zona=FI_andar();
                                 zonaPrevia=zona;
@@ -960,10 +962,6 @@ int main (int argc, char *argv[]){
                         for (int i = 0; i < 3; i++)
                         {
                             if(mem->sitios_templo[i]==getpid()){
-                                if(i==0){
-                                    printf("%d", mem->sitios_templo[0]);
-                        fflush(stdout); 
-                                }
                                 mem->sitios_templo[i]=0;
                                 break;
                             }
