@@ -372,26 +372,7 @@ int main (int argc, char *argv[]){
     //memoria compartida en encina, lo más ajustado a lo que usemos (multiplo de 4)
 
 
-    int dE[]={0, // Cigoto,
-            1, // PasilloSalidaTemplo,
-            1, // CaminoTemploPuente,
-            0, // PuenteHaciaComedor,
-            0, // CaminoPuenteComedor,
-            0, // PasilloEntradaComedor,
-            0, // Antesala,
-            0, // EntradaComedor,
-            0, // SillaComedor,
-            0, // SalidaComedor,
-            0, // PasilloSalidaComedor,
-            0, // ExplanadaComedorPuente,
-            0, // PuenteHaciaTemplo,
-            0, // CaminoPuenteTemplo,
-            0, // PasilloEntradaTemplo,
-            1, // EntradaTemplo,
-            1, // SitioTemplo,
-            1, // SalidaTemplo,
-            0  // Fin
-            };
+
 
 
     //INICIO
@@ -906,7 +887,6 @@ int main (int argc, char *argv[]){
                         {
                             meditar=FI_meditar();
                         } while (meditar==SITIOTEMPLO);
-                        wait_semaforo(semid,13);
 
                         nVueltas+=1;
                         int pasos=0;
@@ -922,21 +902,20 @@ int main (int argc, char *argv[]){
                                     zona=FI_andar();
                                     zonaPrevia=zona;
                                     pasos++;
+                                    printf("a");
+                                    fflush(stdout);
                                 }
-
+                                else
+                                {
+                                    printf("b");
+                                    fflush(stdout);
+                                }
                                 signal_semaforo(semid,11);
-                            }while(pasos<=9);
+                            }while(pasos<=10);
                         }
-                        signal_semaforo(semid,13);
-
 
                         wait_semaforo(semid,6);
-                        memoria *mem = (memoria *)shmat(shm_inicio, NULL, 0);
-                        if (mem == (void *)-1)
-                        {
-                            perror("Error en shmat (hijo)");
-                            exit(1);
-                        }
+
                         for (int i = 0; i < 3; i++)
                         {
                             if(mem->sitios_templo[i]==getpid()){
