@@ -20,6 +20,7 @@ typedef struct infoFils
 
 typedef struct memoria
 {
+    int sitios_templo[3];
     int sentido_puente; //dentro del puente
     int contador_personas;
     int espera;
@@ -27,7 +28,7 @@ typedef struct memoria
     int platos_libres[5];
     infoFils infoFil[21];
     
-    int sitios_templo[3];
+    
 }memoria;
 
 typedef struct mensaje
@@ -337,7 +338,7 @@ int main (int argc, char *argv[]){
         return 1;
     }
 
-    ctl=semctl(semid,14,SETVAL,1);  //permiso sitio2 templo
+    ctl=semctl(semid,14,SETVAL, 1);  //inicio Filosofos
     if(ctl==-1)
     {
         perror("Error al asignar el contador del semaforo.\n");
@@ -350,6 +351,7 @@ int main (int argc, char *argv[]){
         perror("Error al asignar el contador del semaforo.\n");
         return 1;
     }
+
 
 
     memoria memoriam;
@@ -452,6 +454,14 @@ int main (int argc, char *argv[]){
         int zonaPrevia;
 
         int idFil=localizarSignal(getpid(),numFil);
+        if(idFil!=numFil-1)
+        {
+            wait_cero(semid,14);
+        }
+        else
+        {
+            wait_semaforo(semid,14);
+        }
 
         while(nVueltas<numVuel)
         {
@@ -891,9 +901,10 @@ int main (int argc, char *argv[]){
                         nVueltas+=1;
                         int pasos=0;
 
-                        //mirar luego
                         if(nVueltas!=numVuel){
-                            do{   
+                            if(elegido==0)
+                            {
+                                do{   
                                 wait_semaforo(semid,11);
                                 errFI_puedo=FI_puedoAndar();
                                 if(errFI_puedo==100)
@@ -902,23 +913,57 @@ int main (int argc, char *argv[]){
                                     zona=FI_andar();
                                     zonaPrevia=zona;
                                     pasos++;
-                                    printf("a");
-                                    fflush(stdout);
+                                    
                                 }
-                                else
-                                {
-                                    printf("b");
-                                    fflush(stdout);
-                                }
+                               
                                 signal_semaforo(semid,11);
-                            }while(pasos<=10);
+                                }while(pasos<=19);
+                            }
+                            else if (elegido==1)
+                            {
+                                do{   
+                                wait_semaforo(semid,11);
+                                errFI_puedo=FI_puedoAndar();
+                                if(errFI_puedo==100)
+                                {
+                                    errFI_pausa=FI_pausaAndar();
+                                    zona=FI_andar();
+                                    zonaPrevia=zona;
+                                    pasos++;
+                                    
+                                }
+                               
+                                signal_semaforo(semid,11);
+                                }while(pasos<=14);
+                            }
+                            else if (elegido==2)
+                            {
+                               do{   
+                                wait_semaforo(semid,11);
+                                errFI_puedo=FI_puedoAndar();
+                                if(errFI_puedo==100)
+                                {
+                                    errFI_pausa=FI_pausaAndar();
+                                    zona=FI_andar();
+                                    zonaPrevia=zona;
+                                    pasos++;
+                                    
+                                }
+                               
+                                signal_semaforo(semid,11);
+                                }while(pasos<=8); 
+                            }
+                            
                         }
 
                         wait_semaforo(semid,6);
-
                         for (int i = 0; i < 3; i++)
                         {
                             if(mem->sitios_templo[i]==getpid()){
+                                if(i==0){
+                                    printf("%d", mem->sitios_templo[0]);
+                        fflush(stdout); 
+                                }
                                 mem->sitios_templo[i]=0;
                                 break;
                             }
