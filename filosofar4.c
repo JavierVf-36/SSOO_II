@@ -175,14 +175,6 @@ void manejadora_salida(int sig) {
 int main (int argc, char *argv[]){
     int err;
     mensaje msg;
-   //comprobar argumentos pasados al main
-   //registrar señales a usar
-   //obtener IPCs
-   //FI_inicio con clave  41211294392005
-   //crear procesos como se indique en el main
-   //esperar muerte hijos sin cpu
-   //eliminar IPC
-   //llamar FI_fin
    
     pidPadre=getpid();
 
@@ -230,7 +222,7 @@ int main (int argc, char *argv[]){
     }
     
 
-    semid=semget(IPC_PRIVATE, 16, IPC_CREAT|0600);
+    semid=semget(IPC_PRIVATE, 10, IPC_CREAT|0600);
     if(semid==-1)
     {
         printf("Error al crear semaforo...\n");
@@ -246,8 +238,7 @@ int main (int argc, char *argv[]){
         return 1;
     }
 
-    ctl=semctl(semid,1,SETVAL,2);   //semaforo de puente
-
+    ctl=semctl(semid,1,SETVAL,1);   //inicio filosofos
     if(ctl==-1)
     {
         perror("Error al asignar el contador del semaforo.\n");
@@ -291,68 +282,30 @@ int main (int argc, char *argv[]){
     }
 
     ctl=semctl(semid,7,SETVAL,1);  //semaforo memoria comparitda puente
+    
     if(ctl==-1)
     {
         perror("Error al asignar el contador del semaforo.\n");
         return 1;
     }
 
-    ctl=semctl(semid,8,SETVAL,0);  //no puede entrar al puente
+    ctl=semctl(semid,8,SETVAL,1);  //escoger sitio en templo
+    
     if(ctl==-1)
     {
         perror("Error al asignar el contador del semaforo.\n");
         return 1;
     }
 
-    ctl=semctl(semid,9,SETVAL,1);  //para avisar en el templo que es seguro entrar
+    ctl=semctl(semid,9,SETVAL,1);  //andar templo
+    
     if(ctl==-1)
     {
         perror("Error al asignar el contador del semaforo.\n");
         return 1;
     }
 
-    ctl=semctl(semid,10,SETVAL,1);  //escoger sitio en templo
-    if(ctl==-1)
-    {
-        perror("Error al asignar el contador del semaforo.\n");
-        return 1;
-    }
 
-    ctl=semctl(semid,11,SETVAL,1);  //andar templo
-    if(ctl==-1)
-    {
-        perror("Error al asignar el contador del semaforo.\n");
-        return 1;
-    }
-
-    ctl=semctl(semid,12,SETVAL,1);  //andar templo
-    if(ctl==-1)
-    {
-        perror("Error al asignar el contador del semaforo.\n");
-        return 1;
-    }
-
-    //
-    ctl=semctl(semid,13,SETVAL,1);  //permiso sitio1 templo
-    if(ctl==-1)
-    {
-        perror("Error al asignar el contador del semaforo.\n");
-        return 1;
-    }
-
-    ctl=semctl(semid,14,SETVAL, 1);  //inicio Filosofos
-    if(ctl==-1)
-    {
-        perror("Error al asignar el contador del semaforo.\n");
-        return 1;
-    }
-
-    ctl=semctl(semid,15,SETVAL,1);  //permiso sitio3 templo
-    if(ctl==-1)
-    {
-        perror("Error al asignar el contador del semaforo.\n");
-        return 1;
-    }
 
 
 
@@ -458,11 +411,11 @@ int main (int argc, char *argv[]){
         int idFil=localizarSignal(getpid(),numFil);
         if(idFil!=numFil-1)
         {
-            wait_cero(semid,14);
+            wait_cero(semid,1);
         }
         else
         {
-            wait_semaforo(semid,14);
+            wait_semaforo(semid,1);
         }
 
         while(nVueltas<numVuel)
@@ -855,7 +808,7 @@ int main (int argc, char *argv[]){
                 int elegido=-1;
                 do{
                     
-                    wait_semaforo(semid,10);
+                    wait_semaforo(semid,8);
                     
                     for (int i = 0; i < 3; i++)
                     {
@@ -867,10 +820,10 @@ int main (int argc, char *argv[]){
                     }
 
                     if(elegido==-1){
-                        signal_semaforo(semid,10);
+                        signal_semaforo(semid,8);
                     }else{
                         FI_entrarAlTemplo(elegido);
-                        signal_semaforo(semid,10);
+                        signal_semaforo(semid,8);
 
                         //avisar en la cola del elegido (la que sea)
                         //esperar en la cola 53 para que te despierten
@@ -879,7 +832,7 @@ int main (int argc, char *argv[]){
 
                 while(1)
                 {
-                    wait_semaforo(semid,11);
+                    wait_semaforo(semid,9);
                     errFI_puedo=FI_puedoAndar();
                     if(errFI_puedo==100)
                     {
@@ -887,7 +840,7 @@ int main (int argc, char *argv[]){
                         zona=FI_andar();
                         zonaPrevia=zona;
                     }
-                    signal_semaforo(semid,11);
+                    signal_semaforo(semid,9);
 
                     if(zona==-1)
                     {
@@ -907,7 +860,7 @@ int main (int argc, char *argv[]){
                             if(elegido==0)
                             {
                                 do{   
-                                wait_semaforo(semid,11);
+                                wait_semaforo(semid,9);
                                 errFI_puedo=FI_puedoAndar();
                                 if(errFI_puedo==100)
                                 {
@@ -918,13 +871,13 @@ int main (int argc, char *argv[]){
                                     
                                 }
                                
-                                signal_semaforo(semid,11);
+                                signal_semaforo(semid,9);
                                 }while(pasos<=19);
                             }
                             else if (elegido==1)
                             {
                                 do{   
-                                wait_semaforo(semid,11);
+                                wait_semaforo(semid,9);
                                 errFI_puedo=FI_puedoAndar();
                                 if(errFI_puedo==100)
                                 {
@@ -935,13 +888,13 @@ int main (int argc, char *argv[]){
                                     
                                 }
                                
-                                signal_semaforo(semid,11);
+                                signal_semaforo(semid,9);
                                 }while(pasos<=14);
                             }
                             else if (elegido==2)
                             {
                                do{   
-                                wait_semaforo(semid,11);
+                                wait_semaforo(semid,9);
                                 errFI_puedo=FI_puedoAndar();
                                 if(errFI_puedo==100)
                                 {
@@ -952,7 +905,7 @@ int main (int argc, char *argv[]){
                                     
                                 }
                                
-                                signal_semaforo(semid,11);
+                                signal_semaforo(semid,9);
                                 }while(pasos<=8); 
                             }
                             
@@ -966,7 +919,8 @@ int main (int argc, char *argv[]){
                                 break;
                             }
                         }
-                
+                        
+                        shmdt(mem);
                         signal_semaforo(semid,6);
                         break;
                     }
