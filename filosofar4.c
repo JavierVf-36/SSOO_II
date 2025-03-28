@@ -38,6 +38,15 @@ typedef struct mensaje
 }mensaje;
 
 
+
+//union semun {
+//    int val;                   /* Valor para SETVAL */
+//    struct semid_ds *buf;       /* Buffer para IPC_STAT, IPC_SET */
+//    unsigned short *array;      /* Array para GETALL, SETALL */
+//};
+
+
+
 int shm_inicio;
 int sem_inicio;
 int semid;
@@ -171,6 +180,10 @@ void manejadora_salida(int sig) {
 }
 
 
+/*******************/
+/*       MAIN      */   
+/*******************/
+
 
 int main (int argc, char *argv[]){
     int err;
@@ -229,22 +242,28 @@ int main (int argc, char *argv[]){
         return -1;
     }
      
-    int ctl;
-    ctl=semctl(semid,0,SETVAL,1); //semaforo de andar por comedor en general
+    
+    //union semun arg1, arg4;
+    //arg.val1=1;
+    //arg.val4=4;
 
+    int ctl;
+    //ctl=semctl(semid,0,SETVAL,arg1);
+    ctl=semctl(semid,0,SETVAL,1); //semaforo de andar por comedor en general
     if(ctl==-1)
     {
         perror("Error al asignar el contador del semaforo.\n");
         return 1;
     }
 
+    //ctl=semctl(semid,1,SETVAL,arg1);
     ctl=semctl(semid,1,SETVAL,1);   //inicio filosofos
     if(ctl==-1)
     {
         perror("Error al asignar el contador del semaforo.\n");
         return 1;
     }
-
+    //ctl=semctl(semid,2,SETVAL,arg1);
     ctl=semctl(semid,2,SETVAL,1);   //semaforo de mitad de campo a puente
 
     if(ctl==-1)
@@ -252,7 +271,7 @@ int main (int argc, char *argv[]){
         perror("Error al asignar el contador del semaforo.\n");
         return 1;
     }
-
+    //ctl=semctl(semid,3,SETVAL,arg1);
     ctl=semctl(semid,3,SETVAL,1);   //semaforo eleccion plato
     if(ctl==-1)
     {
@@ -260,6 +279,7 @@ int main (int argc, char *argv[]){
         return 1;
     }
 
+    //ctl=semctl(semid,4,SETVAL,arg4);
     ctl=semctl(semid,4,SETVAL,4);   //detenerse antes de entrar al comedor
     if(ctl==-1)
     {
@@ -267,6 +287,7 @@ int main (int argc, char *argv[]){
         return 1;
     }
 
+    //ctl=semctl(semid,5,SETVAL,arg4);
     ctl=semctl(semid,5,SETVAL,4);  //semaforo entrada antesala
     if(ctl==-1)
     {
@@ -274,6 +295,7 @@ int main (int argc, char *argv[]){
         return 1;
     }
 
+    //ctl=semctl(semid,6,SETVAL,arg1);
     ctl=semctl(semid,6,SETVAL,1);  //semaforo templo 
     if(ctl==-1)
     {
@@ -281,24 +303,24 @@ int main (int argc, char *argv[]){
         return 1;
     }
 
+    //ctl=semctl(semid,7,SETVAL,arg1);
     ctl=semctl(semid,7,SETVAL,1);  //semaforo memoria comparitda puente
-    
     if(ctl==-1)
     {
         perror("Error al asignar el contador del semaforo.\n");
         return 1;
     }
 
+    //ctl=semctl(semid,8,SETVAL,arg1);
     ctl=semctl(semid,8,SETVAL,1);  //escoger sitio en templo
-    
     if(ctl==-1)
     {
         perror("Error al asignar el contador del semaforo.\n");
         return 1;
     }
 
+    //ctl=semctl(semid,9,SETVAL,arg1);
     ctl=semctl(semid,9,SETVAL,1);  //andar templo
-    
     if(ctl==-1)
     {
         perror("Error al asignar el contador del semaforo.\n");
