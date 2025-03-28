@@ -111,8 +111,8 @@ int localizarSignal(pid_t pid, int numFil)
         perror("Error en shmat (hijo)");
         exit(1);
     }
-
-    for(int i=0;i<numFil;i++)
+    int i;
+    for(i=0;i<numFil;i++)
     {
         if(memm->infoFil[i].pidFil==pid)
         {
@@ -153,8 +153,8 @@ void liberar_mem(){
 
 
 void manejadora_salida(int sig) {
-    
-    for(int i=0;i<numFil;i++)
+    int i;
+    for(i=0;i<numFil;i++)
     {   
         if(getpid()==pidPadre)
         wait(NULL);
@@ -336,8 +336,8 @@ int main (int argc, char *argv[]){
     int tamMemComp=FI_getTamaNoMemoriaCompartida();
     
 
-
-    for(int i=0; i<numFil; i++){    //filosofos que no existeb a -1
+    int i;
+    for(i=0; i<numFil; i++){    //filosofos que no existeb a -1
         memoriam.infoFil[i].pidFil=-1;
         memoriam.infoFil[i].idFil=-1;
     }
@@ -373,8 +373,8 @@ int main (int argc, char *argv[]){
 
 
 
-
-    for(int i=0;i<numFil;i++){
+    int i;
+    for(i=0;i<numFil;i++){
         pid_t pid=fork();
         
         if(pid==0)
@@ -387,8 +387,8 @@ int main (int argc, char *argv[]){
                 exit(1);
             }
 
-
-            for(int i=0;i<5;i++)
+            int i;
+            for(i=0;i<5;i++)
             {
                 mem->platos_libres[i]=0;
                 mem->tenedores[i]=0;
@@ -579,7 +579,8 @@ int main (int argc, char *argv[]){
                 
                 wait_semaforo(semid,3);
                 int plato=-1;
-                for(int i=0;i<5;i++)
+                int i;
+                for(i=0;i<5;i++)
                 {
                    if (mem->platos_libres[i] == 0) {
                         plato = i;
@@ -831,8 +832,8 @@ int main (int argc, char *argv[]){
                 do{
                     
                     wait_semaforo(semid,8);
-                    
-                    for (int i = 0; i < 3; i++)
+                    int i;
+                    for (i = 0; i < 3; i++)
                     {
                         if(mem->sitios_templo[i]==0){
                             mem->sitios_templo[i]=getpid();
@@ -934,7 +935,8 @@ int main (int argc, char *argv[]){
                         }
 
                         wait_semaforo(semid,6);
-                        for (int i = 0; i < 3; i++)
+                        int i;
+                        for (i = 0; i < 3; i++)
                         {
                             if(mem->sitios_templo[i]==getpid()){
                                 mem->sitios_templo[i]=0;
@@ -971,7 +973,8 @@ int main (int argc, char *argv[]){
     }
     else
     {
-        for(int i=0;i<numFil;i++)
+        int i;
+        for(i=0;i<numFil;i++)
         {   
         wait(NULL);
         }
