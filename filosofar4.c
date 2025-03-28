@@ -372,29 +372,37 @@ int main (int argc, char *argv[]){
 
 
 
+    memoria *mem = (memoria *)shmat(shm_inicio, NULL, 0);
+    if (mem == (void *)-1)
+    {
+        perror("Error en shmat (hijo)");
+        exit(1);
+    }
 
-    int i;
+    for(i=0;i<5;i++)
+    {
+        mem->platos_libres[i]=0;
+        mem->tenedores[i]=0;
+        
+    }
+
+    for(i=0;i<3;i++)
+    {
+    mem->sitios_templo[i]=0;
+    }
+
+    mem->contador_personas=0;
+    mem->sentido_puente=-1;
+    mem->espera=0;
+
+    //int i;
     for(i=0;i<numFil;i++){
         pid_t pid=fork();
         
         if(pid==0)
         {
             
-            memoria *mem = (memoria *)shmat(shm_inicio, NULL, 0);
-            if (mem == (void *)-1)
-            {
-                perror("Error en shmat (hijo)");
-                exit(1);
-            }
-
-            int i;
-            for(i=0;i<5;i++)
-            {
-                mem->platos_libres[i]=0;
-                mem->tenedores[i]=0;
-                mem->sitios_templo[i]=0;
-            }
-
+    
             mem->infoFil[i].pidFil=getpid();
             mem->infoFil[i].idFil=i;
             err=FI_inicioFilOsofo(i);
@@ -402,9 +410,7 @@ int main (int argc, char *argv[]){
             {
                 return -1;
             }
-            mem->contador_personas=0;
-            mem->sentido_puente=-1;
-            mem->espera=0;
+            
             //En memoria compartida se esta guardando correctamente:
             //1.- El pid del filosofo
             //2.- El identificador del filosofo
@@ -518,6 +524,7 @@ int main (int argc, char *argv[]){
                             zona = FI_andar();
                             paso+=1;
                         }
+
                     }
                 }while(paso<2);
 
@@ -692,6 +699,7 @@ int main (int argc, char *argv[]){
                                 zonaPrevia=zona;
                                 total-=1;
                             }
+
                         }while(total>0);
 
                         /*****************************************/
@@ -705,6 +713,7 @@ int main (int argc, char *argv[]){
                                 zona=FI_andar();
                                 zonaPrevia=zona;
                             }
+   
                             signal_semaforo(semid,2);
                         }while(zona!=PUENTE);
                         
@@ -756,6 +765,7 @@ int main (int argc, char *argv[]){
                                 zona=FI_andar();
                                 zonaPrevia=zona;
                             }
+                        
                         }while(zona!=CAMPO);
 
                     }
@@ -780,6 +790,7 @@ int main (int argc, char *argv[]){
                                     zona = FI_andar();
                                     paso+=1;
                                 }
+            
                             }
                         }while(paso<2);
         
@@ -863,6 +874,7 @@ int main (int argc, char *argv[]){
                         zona=FI_andar();
                         zonaPrevia=zona;
                     }
+    
                     signal_semaforo(semid,9);
 
                     if(zona==-1)
@@ -893,6 +905,7 @@ int main (int argc, char *argv[]){
                                     pasos++;
                                     
                                 }
+                    
                                
                                 signal_semaforo(semid,9);
                                 }while(pasos<=19);
@@ -910,7 +923,7 @@ int main (int argc, char *argv[]){
                                     pasos++;
                                     
                                 }
-                               
+    
                                 signal_semaforo(semid,9);
                                 }while(pasos<=14);
                             }
@@ -927,6 +940,7 @@ int main (int argc, char *argv[]){
                                     pasos++;
                                     
                                 }
+
                                
                                 signal_semaforo(semid,9);
                                 }while(pasos<=8); 
