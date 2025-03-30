@@ -75,9 +75,7 @@ void signal_semaforo(int semid, int num_sem){
 
     if(semop(semid, &operacion,1)==-1)
     {
-        char linea[100];
-        sprintf(linea,"Signal(%d):%d",num_sem,semctl(semid,num_sem,GETVAL));
-        perror(linea);
+        perror("Error al hacer el signal");
         exit(EXIT_FAILURE);
     }
 }
@@ -119,7 +117,12 @@ int localizarSignal(pid_t pid, int numFil)
             return memm->infoFil[i].idFil;
         }
     }
-    shmdt(memm);
+    int err=shmdt(memm);
+    if(err==-1)
+    {
+        printf("Error al eliminar puntero a memoria...\n");
+        return -1;
+    }
     return -1;
 }
 
@@ -156,10 +159,12 @@ void manejadora_salida(int sig) {
     int i;
     for(i=0;i<numFil;i++)
     {   
-        if(getpid()==pidPadre)
-        wait(NULL);
-        else
-        exit(0);
+        if(getpid()==pidPadre){
+            wait(NULL);
+        }else{
+            exit(0);
+        }
+        
     }
 
     printf("\nHas pulsado CTRL+C. Eliminando semáforo,memoria compartida y buzones.\n");
@@ -168,14 +173,20 @@ void manejadora_salida(int sig) {
 
     eliminar_sem();
     liberar_mem();
-    eliminar_buzon(buzon);
-
-    int err=FI_fin();
-    if(err<0)
+    int err=eliminar_buzon(buzon);
+    if(err==-1)
     {
-        printf("Error al hacer FI_fin...\n");
+        printf("Error al eliminar buzon...\n");
         return;
     }
+
+    err=FI_fin();
+    if(err==-1){
+        perror("Error al finalizar el programa...\n");
+        return;
+    }
+
+   
     exit(0);
 }
 
@@ -336,12 +347,6 @@ int main (int argc, char *argv[]){
     int tamMemComp=FI_getTamaNoMemoriaCompartida();
     
 
-    int i;
-    for(i=0; i<numFil; i++){    //filosofos que no existeb a -1
-        memoriam.infoFil[i].pidFil=-1;
-        memoriam.infoFil[i].idFil=-1;
-    }
-
     shm_inicio=shmget(IPC_PRIVATE, tamMemComp+sizeof(memoriam), IPC_CREAT | 0600);
     if(shm_inicio<0)
     {
@@ -375,8 +380,14 @@ int main (int argc, char *argv[]){
     memoria *mem = (memoria *)shmat(shm_inicio, NULL, 0);
     if (mem == (void *)-1)
     {
-        perror("Error en shmat (hijo)");
+        perror("Error en shmat");
         exit(1);
+    }
+
+    int i;
+    for(i=0; i<21; i++){    //filosofos que no existen a -1
+        mem->infoFil[i].pidFil=-1;
+        mem->infoFil[i].idFil=-1;
     }
 
     for(i=0;i<5;i++)
@@ -395,7 +406,7 @@ int main (int argc, char *argv[]){
     mem->sentido_puente=-1;
     mem->espera=0;
 
-    //int i;
+    
     for(i=0;i<numFil;i++){
         pid_t pid=fork();
         
@@ -408,6 +419,8 @@ int main (int argc, char *argv[]){
             err=FI_inicioFilOsofo(i);
             if(err ==-1)
             {
+                printf("Error al iniciar filosofos...\n");
+                fflush(stdout);
                 return -1;
             }
             
@@ -417,12 +430,19 @@ int main (int argc, char *argv[]){
             //Basta que un filosofo recorra la memoria 
             //buscando su PID para saber que identificador tiene
 
-            shmdt(mem);
+            err=shmdt(mem);
+            if(err ==-1)
+            {
+                printf("Error al eliminar puntero a memoria...\n");
+                fflush(stdout);
+                return -1;
+            }
             break;
         }
         else if(pid<=-1)
         {
             printf("Error al hacer fork...\n");
+            fflush(stdout);
             return -1;
         }
         
@@ -434,7 +454,7 @@ int main (int argc, char *argv[]){
         
         int nVueltas=0;
         int zona=-1;
-        int zonaPrevia;
+        int zonaPrevia=-2;
 
         int idFil=localizarSignal(getpid(),numFil);
         if(idFil!=numFil-1)
@@ -455,8 +475,21 @@ int main (int argc, char *argv[]){
                 errFI_puedo = FI_puedoAndar();
                 if (errFI_puedo == 100) {
                     errFI_pausa = FI_pausaAndar();
+                    if(errFI_pausa==-1){
+                        perror("Error pausa andar...\n");
+                        return -1;
+                    }
                     zonaPrevia = zona;
                     zona = FI_andar();
+                    if(zona==-1){
+                        perror("Error al andar..\n");
+                        return -1;
+                    }
+                }else if(errFI_puedo==-1){
+                    perror("Error puedo andar...\n");
+                    return -1;
+                }else{
+                    usleep(50000);
                 }
             }
             
@@ -483,7 +516,13 @@ int main (int argc, char *argv[]){
                         puedo_entrar_puente=1;
                         mem->sentido_puente=0;
                         mem->contador_personas+=1;   
-                        shmdt(mem);
+                        err=shmdt(mem);
+                        if(err ==-1)
+                        {
+                            printf("Error al borrar puntero memoria...\n");
+                            fflush(stdout);
+                            return -1;
+                        }
                         signal_semaforo(semid, 7); //libero la memoria para que puedan mirarla            
                     }else{
                         //40: AVISAR A OTRO QUE ESTOY ESPERANDO
@@ -493,10 +532,27 @@ int main (int argc, char *argv[]){
                         mensaje recibido;
                         msg.info=0;
                         msg.tipo=40;
-                        msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
-                        shmdt(mem);
+                        err=msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
+                        if(err ==-1)
+                        {
+                            perror("Error al enviar mensaje puente...\n");
+                            return -1;
+                        }
+
+                        err=shmdt(mem);
+                        if(err ==-1)
+                        {
+                            perror("Error al borrar puntero memoria...\n");
+                            return -1;
+                        }
                         signal_semaforo(semid, 7); //libero la memoria para que puedan miararla
-                        msgrcv(buzon,&recibido,sizeof(mensaje)-sizeof(long),41,0);
+
+                        err=msgrcv(buzon,&recibido,sizeof(mensaje)-sizeof(long),41,0);
+                        if(err ==-1)
+                        {
+                            perror("Error al recibir mensaje puente...\n");
+                            return -1;
+                        }
                         
                         continue;
                     }                    
@@ -506,13 +562,6 @@ int main (int argc, char *argv[]){
             if(zonaPrevia==PUENTE&&zona==CAMPO)
             {
 
-
-                /* AL SALIR, DE DERECHA A IZQUIERDA
-                -Actualizar los valores antes de avisar
-                -Cuando quede uno, que haga un wait
-                */
-
-
                 int paso=0;
                 do{
                     errFI_puedo=0;
@@ -520,12 +569,27 @@ int main (int argc, char *argv[]){
                         errFI_puedo = FI_puedoAndar();
                         if (errFI_puedo == 100) {
                             errFI_pausa = FI_pausaAndar();
+                            if(errFI_pausa ==-1)
+                            {
+                                perror("Error pausa andar...\n");
+                                return -1;
+                            }
                             zonaPrevia = zona;
                             zona = FI_andar();
+                            if(zona==-1){
+                                perror("Error al andar...\n");
+                                return -1;
+                            }
                             paso+=1;
+                        }else if(errFI_puedo==-1){
+                            perror("Error puedo andar...\n");
+                            return -1;
+                        }else{
+                            usleep(50000);
                         }
 
                     }
+                    
                 }while(paso<2);
 
 
@@ -558,7 +622,13 @@ int main (int argc, char *argv[]){
                         }
                     }
                 }
-                shmdt(mem);
+
+                err=shmdt(mem);
+                if(err==-1){
+                    perror("Error al eliminar puntero memoria...\n");
+                    return -1;
+                }                
+
                 signal_semaforo(semid, 7); //arriba de mensajes
 
             }
@@ -582,45 +652,60 @@ int main (int argc, char *argv[]){
                 }
                 
                 //SE TIENE QUE PARAR AQUI ANTES DE LA ELECCION DEL PLATO 
-                wait_semaforo(semid,4); 
+                wait_semaforo(semid,4); //antesala
                 
-                wait_semaforo(semid,3);
+                wait_semaforo(semid,3); //elegir plato en memoria
                 int plato=-1;
                 int i;
                 for(i=0;i<5;i++)
                 {
                    if (mem->platos_libres[i] == 0) {
                         plato = i;
-                        mem->platos_libres[i] = getpid();  // Ocuparait_semaforo(semid,4);  el plato
+                        mem->platos_libres[i] = getpid();  
                         break;
                    }   
                     
                 }
-
-
-                //si plato es -1 está esperando en la antesala, no encontró plato
                 
-                FI_entrarAlComedor(plato);               
+                err=FI_entrarAlComedor(plato);
+                if(err==-1){
+                    perror("Error al entrar al templo...\n");
+                    return -1;
+                }            
                 signal_semaforo(semid,3);    
                
                 //DA EL PASO DE ENTRAR AL COMEDOR Y AVISA A UNO DE LA ANTESALA QUE ENTRE
                 int paso=1;
                 while(1)
-                {       // 
+                {      
 
-                    
                     wait_semaforo(semid,0);
                     errFI_puedo=FI_puedoAndar();
                     if(errFI_puedo==100)
                     {
                         errFI_pausa=FI_pausaAndar();
-                        zona=FI_andar();
+                        if(errFI_pausa==-1){
+                            perror("Error pausa andar...\n");
+                            return -1;
+                        }
                         zonaPrevia=zona;
+                        zona=FI_andar();
+                        if(zona==-1){
+                            perror("Error al andar...\n");
+                        }
+                        
+
                         if(paso==1)
                         {
-                            signal_semaforo(semid,5);
+                            signal_semaforo(semid,5);   //entren en la antesala
                             paso-=1;
                         }
+                    }else if(errFI_puedo==-1){
+                        perror("Error al poder andar...\n");
+                        return -1;
+                    
+                    }else{
+                        usleep(50000);
                     }
                     signal_semaforo(semid,0);
                    
@@ -645,23 +730,73 @@ int main (int argc, char *argv[]){
                             }
 
 
-                            FI_cogerTenedor(TENEDORIZQUIERDO);
-                            FI_cogerTenedor(TENEDORDERECHO);
+                            err=FI_cogerTenedor(TENEDORIZQUIERDO);
+                            if(err==-1){
+                                perror("Error al coger tenedor..\n");
+                                return -1;
+                            }
+                            err=FI_cogerTenedor(TENEDORDERECHO);
+                            if(err==-1){
+                                perror("Error al coger tenedor..\n");
+                                return -1;
+                            }
                             
                             int comiendo;
-
                             do{
                                 comiendo=FI_comer();
+                                if(comiendo==-1){
+                                    perror("Error al comer...\n");
+                                    return -1;
+                                }
                             }while (comiendo==SILLACOMEDOR);
                             
 
                             wait_semaforo(semid,3);
-                            FI_dejarTenedor(TENEDORDERECHO);
-                            FI_dejarTenedor(TENEDORIZQUIERDO);
+                            err=FI_dejarTenedor(TENEDORDERECHO);
+                            if(err==-1){
+                                perror("Error al dejar tenedor..\n");
+                                return -1;
+                            }
+                            err=FI_dejarTenedor(TENEDORIZQUIERDO);
+                            if(err==-1){
+                                perror("Error al dejar tenedor..\n");
+                                return -1;
+                            }
                             mem->tenedores[tenedor_der]=0;
                             mem->tenedores[tenedor_izq]=0;
                             signal_semaforo(semid,3);
+                            
+                            int paso2=0;
+                            do{
 
+                                wait_semaforo(semid,0);
+                                errFI_puedo=FI_puedoAndar();
+                                if(errFI_puedo==100)
+                                {
+                                    errFI_pausa=FI_pausaAndar();
+                                    if(errFI_pausa==-1){
+                                        perror("Error pausa andar...\n");
+                                        return -1;
+                                    }
+
+                                    zonaPrevia=zona;
+                                    zona=FI_andar();
+                                    if(zona==-1){
+                                        perror("Error al andar...");
+                                        return -1;
+
+                                    }
+                                    
+                                    paso2+=1;
+                                    
+                                }else if(errFI_puedo==-1){
+                                    perror("Error puedo andar...\n");
+                                    return -1;
+                                }else{
+                                    usleep(50000);
+                                }
+                                signal_semaforo(semid,0);
+                            }while(paso2<2);
                             mem->platos_libres[plato]=0;
 
 
@@ -671,7 +806,11 @@ int main (int argc, char *argv[]){
             
                        
                         //eliminar puntero memoria
-                        shmdt(mem);
+                        err=shmdt(mem);
+                        if(err==-1){
+                            perror("Error al eliminar puntero a memoria...\n");
+                            return -1;
+                        }
                         signal_semaforo(semid,4);
 
 
@@ -683,8 +822,22 @@ int main (int argc, char *argv[]){
                             if(errFI_puedo==100)
                             {
                                 errFI_pausa=FI_pausaAndar();
-                                zona=FI_andar();
+                                if(errFI_pausa==-1){
+                                    perror("Error puedo andar...\n");
+                                    return -1;
+                                }
                                 zonaPrevia=zona;
+                                zona=FI_andar();
+                                if(zona==-1){
+                                    perror("Error al andar...\n");
+                                    return -1;
+                                }
+                                
+                            }else if(errFI_puedo==-1){
+                                perror("Error puedo andar...\n");
+                                return -1;
+                            }else{
+                                usleep(50000);
                             }
                             signal_semaforo(semid,0);
                         }while(zona!=CAMPO);
@@ -695,9 +848,23 @@ int main (int argc, char *argv[]){
                             if(errFI_puedo==100)
                             { 
                                 errFI_pausa=FI_pausaAndar();
-                                zona=FI_andar();
+                                if(errFI_pausa==-1){
+                                    perror("Error puedo andar...\n");
+                                    return -1;
+                                }
                                 zonaPrevia=zona;
+                                zona=FI_andar();
+                                if(zona==-1){
+                                    perror("Error al andar...\n");
+                                    return -1;
+                                }
+                                
                                 total-=1;
+                            }else if(errFI_puedo==-1){
+                                perror("Error puedo andar...\n");
+                                return -1;
+                            }else{
+                                usleep(50000);
                             }
 
                         }while(total>0);
@@ -710,8 +877,22 @@ int main (int argc, char *argv[]){
                             if(errFI_puedo==100)
                             {
                                 errFI_pausa=FI_pausaAndar();
-                                zona=FI_andar();
+                                if(errFI_pausa==-1){
+                                    perror("Error puedo andar...\n");
+                                    return -1;
+                                }
                                 zonaPrevia=zona;
+                                zona=FI_andar();
+                                if(zona==-1){
+                                    perror("Error al andar...\n");
+                                    return -1;
+                                }
+                                
+                            }else if(errFI_puedo==-1){
+                                perror("Error puedo andar...\n");
+                                return -1;
+                            }else{
+                                usleep(50000);
                             }
    
                             signal_semaforo(semid,2);
@@ -738,7 +919,11 @@ int main (int argc, char *argv[]){
                                 puedo_entrar_puente=1;
                                 mem->sentido_puente=1;
                                 mem->contador_personas+=1;
-                                shmdt(mem);
+                                int err=shmdt(mem);
+                                if(err==-1){
+                                    perror("Error al eliminar puntero memoria...\n");
+                                    return -1;
+                                }
                                 signal_semaforo(semid, 7); //libero la memoria para que puedan mirarla               
                             }else{
                                 //40: AVISAR A OTRO QUE ESTOY ESPERANDO
@@ -748,10 +933,22 @@ int main (int argc, char *argv[]){
                                 mensaje recibido;
                                 msg.info=1;
                                 msg.tipo=40;
-                                msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
-                                shmdt(mem);
+                                int err=msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
+                                if(err==-1){
+                                    perror("Error al enviar mensaje...\n");
+                                    return -1;
+                                }
+                                err=shmdt(mem);
+                                if(err==-1){
+                                    perror("Error al eliminar puntero a memoria...\n");
+                                    return -1;
+                                }
                                 signal_semaforo(semid, 7); //libero la memoria para que puedan miararla
-                                msgrcv(buzon,&recibido,sizeof(mensaje)-sizeof(long),42,0);
+                                err=msgrcv(buzon,&recibido,sizeof(mensaje)-sizeof(long),42,0);
+                                if(err==-1){
+                                    perror("Error al recibir mensaje...\n");
+                                    return -1;
+                                }
                                 continue;
                             }
                             
@@ -762,8 +959,22 @@ int main (int argc, char *argv[]){
                             if(errFI_puedo==100)
                             {
                                 errFI_pausa=FI_pausaAndar();
-                                zona=FI_andar();
+                                if(errFI_pausa==-1){
+                                    perror("Error puedo andar...\n");
+                                    return -1;
+                                }
                                 zonaPrevia=zona;
+                                zona=FI_andar();
+                                if(zona==-1){
+                                    perror("Error al andar...\n");
+                                    return -1;
+                                }
+                                
+                            }else if(errFI_puedo==-1){
+                                perror("Error puedo andar...\n");
+                                return -1;
+                            }else{
+                                usleep(50000);
                             }
                         
                         }while(zona!=CAMPO);
@@ -786,9 +997,23 @@ int main (int argc, char *argv[]){
                                 errFI_puedo = FI_puedoAndar();
                                 if (errFI_puedo == 100) {
                                     errFI_pausa = FI_pausaAndar();
+                                    if(errFI_pausa==-1){
+                                        perror("Error pausa andar...\n");
+                                        return -1;
+                                    }
                                     zonaPrevia = zona;
                                     zona = FI_andar();
+                                    if(zona==-1){
+                                        perror("Error al andar");
+                                        return -1;
+                                    }
+                                    
                                     paso+=1;
+                                }else if(errFI_puedo==-1){
+                                    perror("Error puedo andar...\n");
+                                    return -1;
+                                }else{
+                                    usleep(50000);
                                 }
             
                             }
@@ -813,16 +1038,28 @@ int main (int argc, char *argv[]){
                                     mensaje msg;
                                     msg.info=0;
                                     msg.tipo=41;
-                                    msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
+                                    int err=msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
+                                    if(err==-1){
+                                        perror("Error al enviar mensaje..\n");
+                                        return -1;
+                                    }
                                 } else if(recibido.info==1) {
                                     mensaje msg;
                                     msg.info=0;
                                     msg.tipo=42;
-                                    msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
+                                    int err=msgsnd(buzon,&msg,sizeof(mensaje)-sizeof(long),0);
+                                    if(err==-1){
+                                        perror("Error al enviar mensaje..\n");
+                                        return -1;
+                                    }
                                 }
                             }
                         }
-                        shmdt(mem);
+                        int err=shmdt(mem);
+                        if(err==-1){
+                            perror("Error al eliminar putero a memoria..\n");
+                            return -1;
+                        }
                         signal_semaforo(semid, 7);    
                         break;
                     }
@@ -856,7 +1093,11 @@ int main (int argc, char *argv[]){
                     if(elegido==-1){
                         signal_semaforo(semid,8);
                     }else{
-                        FI_entrarAlTemplo(elegido);
+                        int err=FI_entrarAlTemplo(elegido);
+                        if(err==-1){
+                            perror("Error al entrar al templo...\n");
+                            return -1;
+                        }
                         signal_semaforo(semid,8);
 
                         //avisar en la cola del elegido (la que sea)
@@ -871,14 +1112,30 @@ int main (int argc, char *argv[]){
                     if(errFI_puedo==100)
                     {
                         errFI_pausa=FI_pausaAndar();
-                        zona=FI_andar();
+                        if(errFI_pausa==-1){
+                            perror("Error pausa andar...\n");
+                            return -1;
+                        }
                         zonaPrevia=zona;
+                        zona=FI_andar();
+                        if(zona==-1){
+                            perror("Error al andar...\n");
+                            return -1;
+                        }
+                        
+                    }else if(errFI_puedo==-1){
+                        perror("Error puedo andar...\n");
+                        return -1;
+                    
+                    }else{
+                        usleep(50000);
                     }
     
                     signal_semaforo(semid,9);
 
                     if(zona==-1)
                     {
+                        perror("Error al andar...\n");
                         return -1;
                     }
                     else if(zona == SITIOTEMPLO){
@@ -886,6 +1143,10 @@ int main (int argc, char *argv[]){
                         do
                         {
                             meditar=FI_meditar();
+                            if(meditar==-1){
+                                perror("Error al meditar...\n");
+                                return -1;
+                            }
                         } while (meditar==SITIOTEMPLO);
 
                         nVueltas+=1;
@@ -895,19 +1156,33 @@ int main (int argc, char *argv[]){
                             if(elegido==0)
                             {
                                 do{   
-                                wait_semaforo(semid,9);
-                                errFI_puedo=FI_puedoAndar();
-                                if(errFI_puedo==100)
-                                {
-                                    errFI_pausa=FI_pausaAndar();
-                                    zona=FI_andar();
-                                    zonaPrevia=zona;
-                                    pasos++;
-                                    
-                                }
-                    
-                               
-                                signal_semaforo(semid,9);
+                                    wait_semaforo(semid,9);
+                                    errFI_puedo=FI_puedoAndar();
+                                    if(errFI_puedo==100)
+                                    {
+                                        errFI_pausa=FI_pausaAndar();
+                                        if(errFI_puedo==-1){
+                                            perror("Error puedo andar...\n");
+                                            return -1;
+                                        }
+                                        zonaPrevia=zona;
+                                        zona=FI_andar();
+                                        if(zona==-1){
+                                            perror("Error al andar...\n");
+                                            return -1;
+                                        }
+                                        
+                                        pasos++;
+                                        
+                                    }else if(errFI_puedo==-1){
+                                        perror("Error puedo andar...\n");
+                                        return -1;
+                                    }else{
+                                        usleep(50000);
+                                    }
+                        
+                                
+                                    signal_semaforo(semid,9);
                                 }while(pasos<=19);
                             }
                             else if (elegido==1)
@@ -918,10 +1193,24 @@ int main (int argc, char *argv[]){
                                 if(errFI_puedo==100)
                                 {
                                     errFI_pausa=FI_pausaAndar();
-                                    zona=FI_andar();
+                                    if(errFI_puedo==-1){
+                                        perror("Error puedo andar...\n");
+                                        return -1;
+                                    }
                                     zonaPrevia=zona;
+                                    zona=FI_andar();
+                                    if(zona==-1){
+                                        perror("Error al andar...\n");
+                                        return -1;
+                                    }
+                                    
                                     pasos++;
                                     
+                                }else if(errFI_puedo==-1){
+                                    perror("Error puedo andar...\n");
+                                    return -1;
+                                }else{
+                                    usleep(50000);
                                 }
     
                                 signal_semaforo(semid,9);
@@ -935,10 +1224,24 @@ int main (int argc, char *argv[]){
                                 if(errFI_puedo==100)
                                 {
                                     errFI_pausa=FI_pausaAndar();
-                                    zona=FI_andar();
+                                    if(errFI_puedo==-1){
+                                        perror("Error puedo andar...\n");
+                                        return -1;
+                                    }
                                     zonaPrevia=zona;
+                                    zona=FI_andar();
+                                    if(zona==-1){
+                                        perror("Error al andar...\n");
+                                        return -1;
+                                    }
+                                    
                                     pasos++;
                                     
+                                }else if(errFI_puedo==-1){
+                                    perror("Error puedo andar...\n");
+                                    return -1;
+                                }else{
+                                    usleep(50000);
                                 }
 
                                
@@ -958,7 +1261,11 @@ int main (int argc, char *argv[]){
                             }
                         }
                         
-                        shmdt(mem);
+                        int err=shmdt(mem);
+                        if(err==-1){
+                            perror("Error al eliminar puntero memoria...\n");
+                            return -1;
+                        }
                         signal_semaforo(semid,6);
                         break;
                     }
@@ -998,14 +1305,18 @@ int main (int argc, char *argv[]){
     //ELIMINO IPCs
     eliminar_sem(sem_inicio);
     liberar_mem(shm_inicio);
-    eliminar_buzon(buzon);
+    err=eliminar_buzon(buzon);
+    if(err==-1){
+        perror("Error al eliminar buzon...\n");
+        return -1;
+    }
 
 
     //FIN
     err=FI_fin();
-    if(err<0)
+    if(err==-1)
     {
-        printf("Error al hacer FI_fin...\n");
+        perror("Error al hacer FI_fin...\n");
         return -1;
     }
 
